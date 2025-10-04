@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <!-- Farcaster Frame Meta Tags -->
+    <meta property="fc:frame" content="vNext" />
+    <meta property="fc:frame:image" content="https://block-drop-game.vercel.app/preview.png" />
+    <meta property="fc:frame:button:1" content="🎮 Play Block Drop" />
+    <meta property="fc:frame:button:1:action" content="link" />
+    <meta property="fc:frame:button:1:target" content="https://block-drop-game.vercel.app" />
+    
+    <!-- Open Graph Meta Tags -->
+    <meta property="og:title" content="Block Drop - Web3 Puzzle Game" />
+    <meta property="og:description" content="Classic block puzzle game with blockchain leaderboard on Base!" />
+    <meta property="og:image" content="https://block-drop-game.vercel.app/preview.png" />
+    <meta property="og:url" content="https://block-drop-game.vercel.app" />
+    
+    <!-- Twitter Card Meta Tags -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Block Drop - Web3 Puzzle Game" />
+    <meta name="twitter:description" content="Classic block puzzle game with blockchain leaderboard on Base!" />
+    <meta name="twitter:image" content="https://block-drop-game.vercel.app/preview.png" />
+    
+    <title>Block Drop - Web3 Puzzle Game</title>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .container {
+            text-align: center;
+            max-width: 600px;
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+            padding: 50px 40px;
+            border-radius: 24px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        
+        h1 {
+            font-size: 54px;
+            margin-bottom: 15px;
+            text-shadow: 3px 3px 6px rgba(0,0,0,0.3);
+        }
+        
+        p {
+            font-size: 20px;
+            margin-bottom: 35px;
+            opacity: 0.95;
+            line-height: 1.6;
+        }
+        
+        .play-button {
+            display: inline-block;
+            padding: 18px 50px;
+            background: white;
+            color: #667eea;
+            text-decoration: none;
+            border-radius: 14px;
+            font-weight: bold;
+            font-size: 20px;
+            box-shadow: 0 10px 30px rgba(255,255,255,0.3);
+            transition: all 0.3s ease;
+        }
+        
+        .play-button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 40px rgba(255,255,255,0.5);
+        }
+        
+        .info {
+            margin-top: 40px;
+            padding: 20px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 12px;
+            font-size: 14px;
+            line-height: 1.8;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 8px 16px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 20px;
+            font-size: 12px;
+            margin: 5px;
+            border: 1px solid rgba(255,255,255,0.3);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎮 Block Drop</h1>
+        <p>Web3 Puzzle Game on Base Blockchain</p>
+        
+        <a href="https://block-drop-game.vercel.app" class="play-button">
+            Play Now 🎯
+        </a>
+        
+        <div class="info">
+            <p style="margin-bottom: 15px;"><strong>Click the button in your Farcaster client to start playing!</strong></p>
+            <div>
+                <span class="badge">🎮 Classic Puzzle</span>
+                <span class="badge">🔗 On-Chain Leaderboard</span>
+                <span class="badge">⚡ Base Network</span>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
