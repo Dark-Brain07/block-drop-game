@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Block Drop - Web3 Puzzle Game</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.ethers.io/lib/ethers-5.2.umd.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+            overflow-x: hidden;
+        }
+        #root {
+            width: 100%;
+            min-height: 100vh;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useCallback } = React;
+
+        const BOARD_WIDTH = 10;
+        const BOARD_HEIGHT = 20;
+        const BLOCK_SIZE = 25;
+
+        const SHAPES = [
+            [[1,1,1,1]], [[1,1],[1,1]], [[1,1,1],[0,1,0]], 
+            [[1,1,1],[1,0,0]], [[1,1,1],[0,0,1]], 
+            [[1,1,0],[0,1,1]], [[0,1,1],[1,1,0]]
+        ];
+
+        const COLORS = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8', '#F7DC6F', '#BB8FCE'];
+
+        function BlockDropGame() {
+            const [board, setBoard] = useState(Array(BOARD_HEIGHT).fill(null).map(() => Array(BOARD_WIDTH).fill(0)));
+            const [currentPiece, setCurrentPiece] = useState(null);
+            const [position, setPosition] = useState({ x: 0, y: 0 });
+            const [score, setScore] = useState(0);
+            const [gameOver, setGameOver] = useState(false);
+            const [isPaused, setIsPaused] = useState(false);
+            const [level, setLevel] = useState(1);
+            const [lines, setLines] = useState(0);
+            const [walletAddress, setWalletAddress] = useState('');
+
+            const createNewPiece = useCallback(() => {
+                const shapeIndex = Math.floor(Math.random() * SHAPES.length);
+                return { shape: SHAPES[shapeIndex], color: COLORS[shapeIndex] };
+            }, []);
+
+            const checkCollision = useCallback((piece, pos, testBoard = board) => {
+                if (!piece) return true;
+                for (let y = 0; y < piece.shape.length; y++) {
+                    for (let x = 0; x < piece.shape[y].length; x++) {
+                        if (piece.shape[y][x]) {
+                            const newX = pos.x + x;
+                            const newY = pos.y + y;
+                            if (newX < 0 || newX >= BOARD_WIDTH || newY >= BOARD_HEIGHT) return true;
+                            if (newY >= 0 && testBoard[newY][newX]) return true;
+                        }
+                    }
+                }
+                return false;
+            }, [board]);
+
+            const mergePiece = useCallback(() => {
+                const newBoard = board.map(row => [...row]);
+                currentPiece.shape.forEach((row, y) => {
+                    row.forEach((value, x) => {
+                        if (value) {
+                            const boardY = position.y + y;
+                            const boardX = position.x + x;
+                            if (boardY >= 0) newBoard[boardY][boardX] = currentPiece.color;
+                        }
+                    });
+                });
+                return newBoard;
+            }, [board, currentPiece, position]);
+
+            const clearLines = useCallback((testBoard) => {
+                let linesCleared = 0;
+                const newBoard = testBoard.filter(row => {
+                    if (row.every(cell => cell !== 0)) {
+                        linesCleared++;
+                        return false;
+                    }
+                    return true;
+                });
+                while (newBoard.length < BOARD_HEIGHT) {
+                    newBoard.unshift(Array(BOARD_WIDTH).fill(0));
+                }
+                return { newBoard, linesCleared };
+            }, []);
+
+            const rotatePiece = useCallback(() => {
+                if (!currentPiece || isPaused || gameOver) return;
+                const rotated = currentPiece.shape[0].map((_, i) =>
+                    currentPiece.shape.map(row => row[i]).reverse()
+                );
+                const rotatedPiece = { ...currentPiece, shape: rotated };
+                if (!checkCollision(rotatedPiece, position)) {
+                    setCurrentPiece(rotatedPiece);
+                }
+            }, [currentPiece, position, checkCollision, isPaused, gameOver]);
+
+            const moveDown = useCallback(() => {
+                if (!currentPiece || isPaused || gameOver) return;
+                const newPos = { x: position.x, y: position.y + 1 };
+                if (!checkCollision(currentPiece, newPos)) {
+                    setPosition(newPos);
+                } else {
+                    const mergedBoard = mergePiece();
+                    const { newBoard, linesCleared } = clearLines(mergedBoard);
+                    setBoard(newBoard);
+                    setLines(prev => prev + linesCleared);
+                    setScore(prev => prev + (linesCleared * 100 * level));
+                    setLevel(Math.floor(lines / 10) + 1);
+                    const newPiece = createNewPiece();
+                    const startPos = { x: Math.floor(BOARD_WIDTH / 2) - 1, y: 0 };
+                    if (checkCollision(newPiece, startPos, newBoard)) {
+                        setGameOver(true);
+                    } else {
+                        setCurrentPiece(newPiece);
+                        setPosition(startPos);
+                    }
+                }
+            }, [currentPiece, position, checkCollision, mergePiece, clearLines, createNewPiece, isPaused, gameOver, level, lines]);
+
+            const moveHorizontal = useCallback((direction) => {
+                if (!currentPiece || isPaused || gameOver) return;
+                const newPos = { x: position.x + direction, y: position.y };
+                if (!checkCollision(currentPiece, newPos)) {
+                    setPosition(newPos);
+                }
+            }, [currentPiece, position, checkCollision, isPaused, gameOver]);
+
+            const hardDrop = useCallback(() => {
+                if (!currentPiece || isPaused || gameOver) return;
+                let newY = position.y;
+                while (!checkCollision(currentPiece, { x: position.x, y: newY + 1 })) {
+                    newY++;
+                }
+                setPosition({ x: position.x, y: newY });
+                setTimeout(moveDown, 50);
+            }, [currentPiece, position, checkCollision, moveDown, isPaused, gameOver]);
+
+            const connectWallet = async () => {
+                if (typeof window.ethereum !== 'undefined') {
+                    try {
+                        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+                        setWalletAddress(accounts[0]);
+                        alert('Wallet connected! ✅');
+                    } catch (error) {
+                        alert('Failed to connect wallet');
+                    }
+                } else {
+                    alert('Please install MetaMask!');
+                    window.open('https://metamask.io', '_blank');
+                }
+            };
+
+            const startGame = () => {
+                setBoard(Array(BOARD_HEIGHT).fill(null).map(() => Array(BOARD_WIDTH).fill(0)));
+                const newPiece = createNewPiece();
+                setCurrentPiece(newPiece);
+                setPosition({ x: Math.floor(BOARD_WIDTH / 2) - 1, y: 0 });
+                setScore(0);
+                setLines(0);
+                setLevel(1);
+                setGameOver(false);
+                setIsPaused(false);
+            };
+
+            useEffect(() => {
+                if (!currentPiece && !gameOver) startGame();
+            }, []);
+
+            useEffect(() => {
+                if (gameOver || isPaused) return;
+                const speed = Math.max(200, 1000 - (level - 1) * 100);
+                const timer = setInterval(moveDown, speed);
+                return () => clearInterval(timer);
+            }, [moveDown, gameOver, isPaused, level]);
+
+            useEffect(() => {
+                const handleKeyPress = (e) => {
+                    if (gameOver) return;
+                    switch(e.key) {
+                        case 'ArrowLeft': moveHorizontal(-1); break;
+                        case 'ArrowRight': moveHorizontal(1); break;
+                        case 'ArrowDown': moveDown(); break;
+                        case 'ArrowUp': rotatePiece(); break;
+                        case ' ': e.preventDefault(); hardDrop(); break;
+                        case 'p': case 'P': setIsPaused(prev => !prev); break;
+                    }
+                };
+                window.addEventListener('keydown', handleKeyPress);
+                return () => window.removeEventListener('keydown', handleKeyPress);
+            }, [moveHorizontal, moveDown, rotatePiece, hardDrop, gameOver]);
+
+            const renderBoard = () => {
+                const displayBoard = board.map(row => [...row]);
+                if (currentPiece) {
+                    currentPiece.shape.forEach((row, y) => {
+                        row.forEach((value, x) => {
+                            if (value) {
+                                const boardY = position.y + y;
+                                const boardX = position.x + x;
+                                if (boardY >= 0 && boardY < BOARD_HEIGHT && boardX >= 0 && boardX < BOARD_WIDTH) {
+                                    displayBoard[boardY][boardX] = currentPiece.color;
+                                }
+                            }
+                        });
+                    });
+                }
+                return displayBoard;
+            };
+
+            const displayBoard = renderBoard();
+
+            return (
+                <div style={{ 
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    alignItems: 'center', 
+                    justifyContent: 'center',
+                    minHeight: '100vh', 
+                    background: 'linear-gradient(to bottom right, #1a1a2e, #0f3460, #16213e)', 
+                    padding: '20px'
+                }}>
+                    <div style={{ 
+                        background: 'rgba(0,0,0,0.3)', 
+                        backdropFilter: 'blur(10px)', 
+                        borderRadius: '20px', 
+                        padding: '30px', 
+                        boxShadow: '0 20px 60px rgba(0,0,0,0.5)'
+                    }}>
+                        <h1 style={{ fontSize: '42px', fontWeight: 'bold', color: 'white', marginBottom: '20px', textAlign: 'center' }}>
+                            🎮 Block Drop
+                        </h1>
+                        
+                        <button 
+                            onClick={connectWallet}
+                            style={{ 
+                                width: '100%', 
+                                padding: '12px', 
+                                marginBottom: '20px', 
+                                background: walletAddress ? '#10b981' : '#3b82f6', 
+                                color: 'white', 
+                                border: 'none', 
+                                borderRadius: '10px', 
+                                cursor: 'pointer',
+                                fontWeight: 'bold'
+                            }}
+                        >
+                            {walletAddress ? `🔗 ${walletAddress.slice(0,6)}...${walletAddress.slice(-4)}` : '🔗 Connect Wallet'}
+                        </button>
+
+                        <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', justifyContent: 'center' }}>
+                            <div style={{ background: 'rgba(0,0,0,0.5)', padding: '15px', borderRadius: '10px', border: '4px solid #333' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: `repeat(${BOARD_WIDTH}, ${BLOCK_SIZE}px)`, gap: 0 }}>
+                                    {displayBoard.map((row, y) =>
+                                        row.map((cell, x) => (
+                                            <div
+                                                key={`${y}-${x}`}
+                                                style={{
+                                                    width: BLOCK_SIZE,
+                                                    height: BLOCK_SIZE,
+                                                    backgroundColor: cell || '#1a1a2e',
+                                                    border: '1px solid #333',
+                                                    boxShadow: cell ? 'inset 0 0 10px rgba(255,255,255,0.3)' : 'none'
+                                                }}
+                                            />
+                                        ))
+                                    )}
+                                </div>
+                            </div>
+                            
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', minWidth: '200px' }}>
+                                <div style={{ background: 'linear-gradient(135deg, #667eea, #764ba2)', padding: '20px', borderRadius: '12px', color: 'white' }}>
+                                    <div style={{ fontSize: '12px', opacity: 0.9 }}>Score</div>
+                                    <div style={{ fontSize: '32px', fontWeight: 'bold' }}>{score}</div>
+                                </div>
+                                
+                                <div style={{ background: 'linear-gradient(135deg, #f093fb, #f5576c)', padding: '15px', borderRadius: '12px', color: 'white' }}>
+                                    <div style={{ fontSize: '12px', opacity: 0.9 }}>Lines</div>
+                                    <div style={{ fontSize: '26px', fontWeight: 'bold' }}>{lines}</div>
+                                </div>
+                                
+                                <div style={{ background: 'linear-gradient(135deg, #4facfe, #00f2fe)', padding: '15px', borderRadius: '12px', color: 'white' }}>
+                                    <div style={{ fontSize: '12px', opacity: 0.9 }}>Level</div>
+                                    <div style={{ fontSize: '26px', fontWeight: 'bold' }}>{level}</div>
+                                </div>
+                                
+                                <div style={{ background: 'rgba(255,255,255,0.1)', padding: '15px', borderRadius: '12px', color: 'white', fontSize: '13px' }}>
+                                    <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>Controls:</div>
+                                    <div>← → : Move</div>
+                                    <div>↑ : Rotate</div>
+                                    <div>↓ : Soft Drop</div>
+                                    <div>Space : Hard Drop</div>
+                                    <div>P : Pause</div>
+                                </div>
+                                
+                                <button onClick={() => setIsPaused(!isPaused)} style={{ background: '#eab308', color: 'black', fontWeight: 'bold', padding: '14px', borderRadius: '12px', border: 'none', cursor: 'pointer' }}>
+                                    {isPaused ? '▶️ Resume' : '⏸️ Pause'}
+                                </button>
+                                
+                                <button onClick={startGame} style={{ background: '#10b981', color: 'white', fontWeight: 'bold', padding: '14px', borderRadius: '12px', border: 'none', cursor: 'pointer' }}>
+                                    🔄 New Game
+                                </button>
+                            </div>
+                        </div>
+                        
+                        {gameOver && (
+                            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
+                                <div style={{ background: 'linear-gradient(135deg, #667eea, #764ba2)', padding: '50px', borderRadius: '24px', color: 'white', textAlign: 'center' }}>
+                                    <h2 style={{ fontSize: '48px', fontWeight: 'bold', marginBottom: '25px' }}>Game Over! 🎮</h2>
+                                    <p style={{ fontSize: '28px', marginBottom: '12px' }}>Final Score: <strong>{score}</strong></p>
+                                    <p style={{ fontSize: '22px', marginBottom: '8px' }}>Lines: <strong>{lines}</strong></p>
+                                    <p style={{ fontSize: '22px', marginBottom: '35px' }}>Level: <strong>{level}</strong></p>
+                                    <button onClick={startGame} style={{ background: 'white', color: '#667eea', fontWeight: 'bold', padding: '16px 50px', borderRadius: '12px', border: 'none', cursor: 'pointer', fontSize: '18px' }}>
+                                        Play Again 🎯
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                    
+                    <div style={{ marginTop: '25px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                        <button onClick={() => moveHorizontal(-1)} style={{ background: '#3b82f6', color: 'white', fontWeight: 'bold', padding: '18px 32px', borderRadius: '12px', border: 'none', cursor: 'pointer', fontSize: '24px' }}>←</button>
+                        <button onClick={rotatePiece} style={{ background: '#10b981', color: 'white', fontWeight: 'bold', padding: '18px 32px', borderRadius: '12px', border: 'none', cursor: 'pointer', fontSize: '24px' }}>↻</button>
+                        <button onClick={hardDrop} style={{ background: '#ef4444', color: 'white', fontWeight: 'bold', padding: '18px 32px', borderRadius: '12px', border: 'none', cursor: 'pointer', fontSize: '24px' }}>↓↓</button>
+                        <button onClick={() => moveHorizontal(1)} style={{ background: '#3b82f6', color: 'white', fontWeight: 'bold', padding: '18px 32px', borderRadius: '12px', border: 'none', cursor: 'pointer', fontSize: '24px' }}>→</button>
+                    </div>
+                </div>
+            );
+        }
+
+        ReactDOM.render(<BlockDropGame />, document.getElementById('root'));
+    </script>
+</body>
+</html>
