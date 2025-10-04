@@ -24,7 +24,7 @@
 <body>
     <div id="root"><div class="loading">Loading Block Drop... 🎮</div></div>
 
-    <script>
+    <script type="text/javascript">
         // LEADERBOARD CONTRACT ON BASE MAINNET
         const CONTRACT_ADDRESS = '0xa6A74BDCD285Fc5b6634666D511333f47Ea7aBaf';
 
@@ -35,56 +35,64 @@
           "function getTotalScores() external view returns (uint256)"
         ];
 
-        async function connectWallet() {
+        // Make functions globally accessible
+        window.connectWallet = async function() {
           if (typeof window.ethereum === 'undefined') {
             throw new Error('MetaMask not installed');
           }
 
-          await window.ethereum.request({ method: 'eth_requestAccounts' });
-          const provider = new ethers.providers.Web3Provider(window.ethereum);
-          const signer = provider.getSigner();
-          const address = await signer.getAddress();
-          
-          const network = await provider.getNetwork();
-          if (network.chainId !== 8453) {
-            try {
-              await window.ethereum.request({
-                method: 'wallet_switchEthereumChain',
-                params: [{ chainId: '0x2105' }],
-              });
-            } catch (err) {
-              if (err.code === 4902) {
+          try {
+            await window.ethereum.request({ method: 'eth_requestAccounts' });
+            const provider = new ethers.providers.Web3Provider(window.ethereum);
+            const signer = provider.getSigner();
+            const address = await signer.getAddress();
+            
+            const network = await provider.getNetwork();
+            if (network.chainId !== 8453) {
+              try {
                 await window.ethereum.request({
-                  method: 'wallet_addEthereumChain',
-                  params: [{
-                    chainId: '0x2105',
-                    chainName: 'Base',
-                    nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 },
-                    rpcUrls: ['https://mainnet.base.org'],
-                    blockExplorerUrls: ['https://basescan.org']
-                  }]
+                  method: 'wallet_switchEthereumChain',
+                  params: [{ chainId: '0x2105' }],
                 });
+              } catch (err) {
+                if (err.code === 4902) {
+                  await window.ethereum.request({
+                    method: 'wallet_addEthereumChain',
+                    params: [{
+                      chainId: '0x2105',
+                      chainName: 'Base',
+                      nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 },
+                      rpcUrls: ['https://mainnet.base.org'],
+                      blockExplorerUrls: ['https://basescan.org']
+                    }]
+                  });
+                } else {
+                  throw err;
+                }
               }
             }
+            
+            return { provider, signer, address };
+          } catch (error) {
+            console.error('Wallet connection error:', error);
+            throw error;
           }
-          
-          return { provider, signer, address };
-        }
+        };
 
-        async function submitScoreToBlockchain(score, level, lines, username) {
+        window.submitScoreToBlockchain = async function(score, level, lines, username) {
           try {
-            const { signer } = await connectWallet();
+            const { signer } = await window.connectWallet();
             const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
             const tx = await contract.submitScore(score, level, lines, username);
             const receipt = await tx.wait();
             return { success: true, hash: receipt.transactionHash };
           } catch (error) {
             console.error('Submit error:', error);
-            return { success: false, error: error.message };
+            return { success: false, error: error.message || 'Unknown error' };
           }
-        }
+        };
 
-        async function getLeaderboard(count = 10) {
+        window.getLeaderboard = async function(count = 10) {
           try {
             const provider = new ethers.providers.JsonRpcProvider('https://mainnet.base.org');
             const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, provider);
@@ -101,18 +109,22 @@
             console.error('Leaderboard error:', error);
             return [];
           }
-        }
+        };
 
-        async function getTotalScores() {
+        window.getTotalScores = async function() {
           try {
             const provider = new ethers.providers.JsonRpcProvider('https://mainnet.base.org');
             const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, provider);
             const total = await contract.getTotalScores();
             return total.toNumber();
           } catch (error) {
+            console.error('Total scores error:', error);
             return 0;
           }
-        }
+        };
+
+        console.log('✅ Web3 functions loaded');
+        console.log('Contract:', CONTRACT_ADDRESS);
     </script>
 
     <script type="text/babel">
@@ -276,16 +288,20 @@
 
             const handleConnectWallet = async () => {
                 try {
-                    const { address } = await connectWallet();
+                    if (typeof window.connectWallet === 'undefined') {
+                        throw new Error('Web3 not loaded. Please refresh the page.');
+                    }
+                    const { address } = await window.connectWallet();
                     setWalletAddress(address);
                     alert('✅ Wallet Connected!\n\nYou can now submit scores to the blockchain.');
                     loadTotalScores();
                 } catch (error) {
-                    if (error.message.includes('MetaMask')) {
+                    console.error('Connection error:', error);
+                    if (error.message && error.message.includes('MetaMask')) {
                         const install = window.confirm('MetaMask not detected!\n\nInstall MetaMask to submit scores on-chain?');
                         if (install) window.open('https://metamask.io/download/', '_blank');
                     } else {
-                        alert('❌ Connection failed: ' + error.message);
+                        alert('❌ Connection failed: ' + (error.message || 'Unknown error'));
                     }
                 }
             };
@@ -306,17 +322,21 @@
 
                 setSubmittingScore(true);
                 try {
-                    const result = await submitScoreToBlockchain(score, level, lines, username.trim());
+                    if (typeof window.submitScoreToBlockchain === 'undefined') {
+                        throw new Error('Web3 not loaded. Please refresh the page.');
+                    }
+                    const result = await window.submitScoreToBlockchain(score, level, lines, username.trim());
                     
                     if (result.success) {
                         alert(`🎉 Score Submitted!\n\nScore: ${score}\nTransaction:\n${result.hash.slice(0,10)}...${result.hash.slice(-8)}\n\nView on Basescan`);
                         loadLeaderboard();
                         loadTotalScores();
                     } else {
-                        alert('❌ Failed to submit:\n\n' + result.error.slice(0, 100));
+                        alert('❌ Failed to submit:\n\n' + (result.error || 'Unknown error').slice(0, 100));
                     }
                 } catch (error) {
-                    alert('❌ Error:\n\n' + error.message.slice(0, 100));
+                    console.error('Submit error:', error);
+                    alert('❌ Error:\n\n' + (error.message || 'Unknown error').slice(0, 100));
                 } finally {
                     setSubmittingScore(false);
                 }
@@ -324,17 +344,27 @@
 
             const loadLeaderboard = async () => {
                 try {
-                    const scores = await getLeaderboard(10);
+                    if (typeof window.getLeaderboard === 'undefined') {
+                        throw new Error('Web3 not loaded. Please refresh the page.');
+                    }
+                    const scores = await window.getLeaderboard(10);
                     setLeaderboard(scores);
                     setShowLeaderboard(true);
                 } catch (error) {
                     console.error('Failed to load leaderboard:', error);
+                    alert('❌ Failed to load leaderboard. Please try again.');
                 }
             };
 
             const loadTotalScores = async () => {
-                const total = await getTotalScores();
-                setTotalScores(total);
+                try {
+                    if (typeof window.getTotalScores !== 'undefined') {
+                        const total = await window.getTotalScores();
+                        setTotalScores(total);
+                    }
+                } catch (error) {
+                    console.error('Failed to load total scores:', error);
+                }
             };
 
             const startGame = () => {
