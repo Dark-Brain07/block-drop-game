@@ -2,44 +2,126 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Block Drop - Web3 Puzzle Game</title>
+    
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.ethers.io/lib/ethers-5.2.umd.min.js"></script>
+    
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
-            overflow-x: hidden;
-        }
-        #root {
-            width: 100%;
-            min-height: 100vh;
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; overflow-x: hidden; touch-action: manipulation; }
+        #root { width: 100%; min-height: 100vh; }
+        .loading { display: flex; align-items: center; justify-content: center; min-height: 100vh; color: white; font-size: 24px; background: linear-gradient(135deg, #1a1a2e, #0f3460); }
+        button { touch-action: manipulation; -webkit-user-select: none; user-select: none; }
+        @media (max-width: 768px) {
+            .game-board { transform: scale(0.9); transform-origin: top center; }
         }
     </style>
 </head>
 <body>
-    <div id="root"></div>
+    <div id="root"><div class="loading">Loading Block Drop... 🎮</div></div>
+
+    <script>
+        // LEADERBOARD CONTRACT ON BASE MAINNET
+        const CONTRACT_ADDRESS = '0xa6A74BDCD285Fc5b6634666D511333f47Ea7aBaf';
+
+        const CONTRACT_ABI = [
+          "function submitScore(uint256 _score, uint256 _level, uint256 _lines, string memory _username) external",
+          "function getTopScores(uint256 _count) external view returns (tuple(address player, uint256 score, uint256 level, uint256 lines, uint256 timestamp, string username)[])",
+          "function getPlayerBestScore(address _player) external view returns (uint256)",
+          "function getTotalScores() external view returns (uint256)"
+        ];
+
+        async function connectWallet() {
+          if (typeof window.ethereum === 'undefined') {
+            throw new Error('MetaMask not installed');
+          }
+
+          await window.ethereum.request({ method: 'eth_requestAccounts' });
+          const provider = new ethers.providers.Web3Provider(window.ethereum);
+          const signer = provider.getSigner();
+          const address = await signer.getAddress();
+          
+          const network = await provider.getNetwork();
+          if (network.chainId !== 8453) {
+            try {
+              await window.ethereum.request({
+                method: 'wallet_switchEthereumChain',
+                params: [{ chainId: '0x2105' }],
+              });
+            } catch (err) {
+              if (err.code === 4902) {
+                await window.ethereum.request({
+                  method: 'wallet_addEthereumChain',
+                  params: [{
+                    chainId: '0x2105',
+                    chainName: 'Base',
+                    nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 },
+                    rpcUrls: ['https://mainnet.base.org'],
+                    blockExplorerUrls: ['https://basescan.org']
+                  }]
+                });
+              }
+            }
+          }
+          
+          return { provider, signer, address };
+        }
+
+        async function submitScoreToBlockchain(score, level, lines, username) {
+          try {
+            const { signer } = await connectWallet();
+            const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
+            const tx = await contract.submitScore(score, level, lines, username);
+            const receipt = await tx.wait();
+            return { success: true, hash: receipt.transactionHash };
+          } catch (error) {
+            console.error('Submit error:', error);
+            return { success: false, error: error.message };
+          }
+        }
+
+        async function getLeaderboard(count = 10) {
+          try {
+            const provider = new ethers.providers.JsonRpcProvider('https://mainnet.base.org');
+            const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, provider);
+            const scores = await contract.getTopScores(count);
+            return scores.map(s => ({
+              player: s.player,
+              score: s.score.toNumber(),
+              level: s.level.toNumber(),
+              lines: s.lines.toNumber(),
+              timestamp: s.timestamp.toNumber(),
+              username: s.username
+            }));
+          } catch (error) {
+            console.error('Leaderboard error:', error);
+            return [];
+          }
+        }
+
+        async function getTotalScores() {
+          try {
+            const provider = new ethers.providers.JsonRpcProvider('https://mainnet.base.org');
+            const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, provider);
+            const total = await contract.getTotalScores();
+            return total.toNumber();
+          } catch (error) {
+            return 0;
+          }
+        }
+    </script>
 
     <script type="text/babel">
-        const { useState, useEffect, useCallback } = React;
+        const { useState, useEffect, useCallback, useRef } = React;
 
         const BOARD_WIDTH = 10;
         const BOARD_HEIGHT = 20;
         const BLOCK_SIZE = 25;
-
-        const SHAPES = [
-            [[1,1,1,1]], [[1,1],[1,1]], [[1,1,1],[0,1,0]], 
-            [[1,1,1],[1,0,0]], [[1,1,1],[0,0,1]], 
-            [[1,1,0],[0,1,1]], [[0,1,1],[1,1,0]]
-        ];
-
+        const SHAPES = [[[1,1,1,1]], [[1,1],[1,1]], [[1,1,1],[0,1,0]], [[1,1,1],[1,0,0]], [[1,1,1],[0,0,1]], [[1,1,0],[0,1,1]], [[0,1,1],[1,1,0]]];
         const COLORS = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8', '#F7DC6F', '#BB8FCE'];
 
         function BlockDropGame() {
@@ -52,6 +134,23 @@
             const [level, setLevel] = useState(1);
             const [lines, setLines] = useState(0);
             const [walletAddress, setWalletAddress] = useState('');
+            const [leaderboard, setLeaderboard] = useState([]);
+            const [showLeaderboard, setShowLeaderboard] = useState(false);
+            const [submittingScore, setSubmittingScore] = useState(false);
+            const [totalScores, setTotalScores] = useState(0);
+            const [isMobile, setIsMobile] = useState(false);
+            
+            const touchStartX = useRef(0);
+            const touchStartY = useRef(0);
+
+            useEffect(() => {
+                const checkMobile = () => {
+                    setIsMobile(window.innerWidth <= 768 || 'ontouchstart' in window);
+                };
+                checkMobile();
+                window.addEventListener('resize', checkMobile);
+                return () => window.removeEventListener('resize', checkMobile);
+            }, []);
 
             const createNewPiece = useCallback(() => {
                 const shapeIndex = Math.floor(Math.random() * SHAPES.length);
@@ -104,13 +203,9 @@
 
             const rotatePiece = useCallback(() => {
                 if (!currentPiece || isPaused || gameOver) return;
-                const rotated = currentPiece.shape[0].map((_, i) =>
-                    currentPiece.shape.map(row => row[i]).reverse()
-                );
+                const rotated = currentPiece.shape[0].map((_, i) => currentPiece.shape.map(row => row[i]).reverse());
                 const rotatedPiece = { ...currentPiece, shape: rotated };
-                if (!checkCollision(rotatedPiece, position)) {
-                    setCurrentPiece(rotatedPiece);
-                }
+                if (!checkCollision(rotatedPiece, position)) setCurrentPiece(rotatedPiece);
             }, [currentPiece, position, checkCollision, isPaused, gameOver]);
 
             const moveDown = useCallback(() => {
@@ -124,7 +219,7 @@
                     setBoard(newBoard);
                     setLines(prev => prev + linesCleared);
                     setScore(prev => prev + (linesCleared * 100 * level));
-                    setLevel(Math.floor(lines / 10) + 1);
+                    setLevel(Math.floor((lines + linesCleared) / 10) + 1);
                     const newPiece = createNewPiece();
                     const startPos = { x: Math.floor(BOARD_WIDTH / 2) - 1, y: 0 };
                     if (checkCollision(newPiece, startPos, newBoard)) {
@@ -139,34 +234,107 @@
             const moveHorizontal = useCallback((direction) => {
                 if (!currentPiece || isPaused || gameOver) return;
                 const newPos = { x: position.x + direction, y: position.y };
-                if (!checkCollision(currentPiece, newPos)) {
-                    setPosition(newPos);
-                }
+                if (!checkCollision(currentPiece, newPos)) setPosition(newPos);
             }, [currentPiece, position, checkCollision, isPaused, gameOver]);
 
             const hardDrop = useCallback(() => {
                 if (!currentPiece || isPaused || gameOver) return;
                 let newY = position.y;
-                while (!checkCollision(currentPiece, { x: position.x, y: newY + 1 })) {
-                    newY++;
-                }
+                while (!checkCollision(currentPiece, { x: position.x, y: newY + 1 })) newY++;
                 setPosition({ x: position.x, y: newY });
                 setTimeout(moveDown, 50);
             }, [currentPiece, position, checkCollision, moveDown, isPaused, gameOver]);
 
-            const connectWallet = async () => {
-                if (typeof window.ethereum !== 'undefined') {
-                    try {
-                        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-                        setWalletAddress(accounts[0]);
-                        alert('Wallet connected! ✅');
-                    } catch (error) {
-                        alert('Failed to connect wallet');
+            // Touch controls
+            const handleTouchStart = useCallback((e) => {
+                touchStartX.current = e.touches[0].clientX;
+                touchStartY.current = e.touches[0].clientY;
+            }, []);
+
+            const handleTouchEnd = useCallback((e) => {
+                if (gameOver || isPaused) return;
+                
+                const touchEndX = e.changedTouches[0].clientX;
+                const touchEndY = e.changedTouches[0].clientY;
+                const deltaX = touchEndX - touchStartX.current;
+                const deltaY = touchEndY - touchStartY.current;
+                
+                if (Math.abs(deltaX) > Math.abs(deltaY)) {
+                    // Horizontal swipe
+                    if (Math.abs(deltaX) > 30) {
+                        moveHorizontal(deltaX > 0 ? 1 : -1);
                     }
                 } else {
-                    alert('Please install MetaMask!');
-                    window.open('https://metamask.io', '_blank');
+                    // Vertical swipe
+                    if (deltaY > 50) {
+                        hardDrop();
+                    } else if (deltaY < -30) {
+                        rotatePiece();
+                    }
                 }
+            }, [gameOver, isPaused, moveHorizontal, hardDrop, rotatePiece]);
+
+            const handleConnectWallet = async () => {
+                try {
+                    const { address } = await connectWallet();
+                    setWalletAddress(address);
+                    alert('✅ Wallet Connected!\n\nYou can now submit scores to the blockchain.');
+                    loadTotalScores();
+                } catch (error) {
+                    if (error.message.includes('MetaMask')) {
+                        const install = window.confirm('MetaMask not detected!\n\nInstall MetaMask to submit scores on-chain?');
+                        if (install) window.open('https://metamask.io/download/', '_blank');
+                    } else {
+                        alert('❌ Connection failed: ' + error.message);
+                    }
+                }
+            };
+
+            const handleSubmitScore = async () => {
+                if (!walletAddress) {
+                    alert('⚠️ Please connect your wallet first!');
+                    return;
+                }
+
+                if (score === 0) {
+                    alert('⚠️ Play the game first to earn a score!');
+                    return;
+                }
+
+                const username = prompt('Enter your username:\n(Max 20 characters)');
+                if (!username || username.trim() === '') return;
+
+                setSubmittingScore(true);
+                try {
+                    const result = await submitScoreToBlockchain(score, level, lines, username.trim());
+                    
+                    if (result.success) {
+                        alert(`🎉 Score Submitted!\n\nScore: ${score}\nTransaction:\n${result.hash.slice(0,10)}...${result.hash.slice(-8)}\n\nView on Basescan`);
+                        loadLeaderboard();
+                        loadTotalScores();
+                    } else {
+                        alert('❌ Failed to submit:\n\n' + result.error.slice(0, 100));
+                    }
+                } catch (error) {
+                    alert('❌ Error:\n\n' + error.message.slice(0, 100));
+                } finally {
+                    setSubmittingScore(false);
+                }
+            };
+
+            const loadLeaderboard = async () => {
+                try {
+                    const scores = await getLeaderboard(10);
+                    setLeaderboard(scores);
+                    setShowLeaderboard(true);
+                } catch (error) {
+                    console.error('Failed to load leaderboard:', error);
+                }
+            };
+
+            const loadTotalScores = async () => {
+                const total = await getTotalScores();
+                setTotalScores(total);
             };
 
             const startGame = () => {
@@ -179,10 +347,12 @@
                 setLevel(1);
                 setGameOver(false);
                 setIsPaused(false);
+                setShowLeaderboard(false);
             };
 
             useEffect(() => {
                 if (!currentPiece && !gameOver) startGame();
+                loadTotalScores();
             }, []);
 
             useEffect(() => {
@@ -229,118 +399,173 @@
             const displayBoard = renderBoard();
 
             return (
-                <div style={{ 
-                    display: 'flex', 
-                    flexDirection: 'column', 
-                    alignItems: 'center', 
-                    justifyContent: 'center',
-                    minHeight: '100vh', 
-                    background: 'linear-gradient(to bottom right, #1a1a2e, #0f3460, #16213e)', 
-                    padding: '20px'
-                }}>
-                    <div style={{ 
-                        background: 'rgba(0,0,0,0.3)', 
-                        backdropFilter: 'blur(10px)', 
-                        borderRadius: '20px', 
-                        padding: '30px', 
-                        boxShadow: '0 20px 60px rgba(0,0,0,0.5)'
-                    }}>
-                        <h1 style={{ fontSize: '42px', fontWeight: 'bold', color: 'white', marginBottom: '20px', textAlign: 'center' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', background: 'linear-gradient(135deg, #1a1a2e, #0f3460, #16213e)', padding: isMobile ? '10px' : '20px' }}>
+                    <div style={{ background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(15px)', borderRadius: isMobile ? '16px' : '24px', padding: isMobile ? '15px' : '30px', boxShadow: '0 25px 70px rgba(0,0,0,0.6)', border: '1px solid rgba(255,255,255,0.1)', maxWidth: '1200px', width: '100%' }}>
+                        <h1 style={{ fontSize: isMobile ? '32px' : '48px', fontWeight: 'bold', color: 'white', marginBottom: '5px', textAlign: 'center', textShadow: '3px 3px 6px rgba(0,0,0,0.5)' }}>
                             🎮 Block Drop
                         </h1>
+                        <p style={{ textAlign: 'center', color: 'rgba(255,255,255,0.7)', marginBottom: '5px', fontSize: isMobile ? '11px' : '14px' }}>
+                            Web3 Puzzle on Base • {totalScores} Scores
+                        </p>
+                        <p style={{ textAlign: 'center', color: 'rgba(255,255,255,0.5)', marginBottom: '15px', fontSize: isMobile ? '9px' : '11px', fontFamily: 'monospace' }}>
+                            0xa6A7...aBaf
+                        </p>
                         
-                        <button 
-                            onClick={connectWallet}
-                            style={{ 
-                                width: '100%', 
-                                padding: '12px', 
-                                marginBottom: '20px', 
-                                background: walletAddress ? '#10b981' : '#3b82f6', 
-                                color: 'white', 
-                                border: 'none', 
-                                borderRadius: '10px', 
-                                cursor: 'pointer',
-                                fontWeight: 'bold'
-                            }}
-                        >
+                        <button onClick={handleConnectWallet} style={{ width: '100%', padding: isMobile ? '12px' : '14px', marginBottom: '20px', background: walletAddress ? 'linear-gradient(135deg, #10b981, #059669)' : 'linear-gradient(135deg, #3b82f6, #2563eb)', color: 'white', border: 'none', borderRadius: '12px', cursor: 'pointer', fontWeight: 'bold', fontSize: isMobile ? '13px' : '15px', boxShadow: '0 6px 20px rgba(59, 130, 246, 0.4)' }}>
                             {walletAddress ? `🔗 ${walletAddress.slice(0,6)}...${walletAddress.slice(-4)}` : '🔗 Connect Wallet'}
                         </button>
 
-                        <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', justifyContent: 'center' }}>
-                            <div style={{ background: 'rgba(0,0,0,0.5)', padding: '15px', borderRadius: '10px', border: '4px solid #333' }}>
-                                <div style={{ display: 'grid', gridTemplateColumns: `repeat(${BOARD_WIDTH}, ${BLOCK_SIZE}px)`, gap: 0 }}>
-                                    {displayBoard.map((row, y) =>
-                                        row.map((cell, x) => (
-                                            <div
-                                                key={`${y}-${x}`}
-                                                style={{
-                                                    width: BLOCK_SIZE,
-                                                    height: BLOCK_SIZE,
-                                                    backgroundColor: cell || '#1a1a2e',
-                                                    border: '1px solid #333',
-                                                    boxShadow: cell ? 'inset 0 0 10px rgba(255,255,255,0.3)' : 'none'
-                                                }}
-                                            />
-                                        ))
-                                    )}
+                        <div style={{ display: 'flex', gap: isMobile ? '15px' : '25px', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'flex-start' }}>
+                            <div 
+                                className="game-board"
+                                onTouchStart={handleTouchStart}
+                                onTouchEnd={handleTouchEnd}
+                                style={{ background: 'rgba(0,0,0,0.6)', padding: isMobile ? '10px' : '20px', borderRadius: '16px', border: '4px solid rgba(102, 126, 234, 0.3)', boxShadow: '0 15px 50px rgba(0,0,0,0.6)', touchAction: 'none' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: `repeat(${BOARD_WIDTH}, ${BLOCK_SIZE}px)`, gap: '1px', background: '#0a0a0a', padding: '1px' }}>
+                                    {displayBoard.map((row, y) => row.map((cell, x) => (
+                                        <div key={`${y}-${x}`} style={{ width: BLOCK_SIZE, height: BLOCK_SIZE, backgroundColor: cell || '#1a1a2e', boxShadow: cell ? 'inset 0 0 10px rgba(255,255,255,0.4), 0 2px 5px rgba(0,0,0,0.3)' : 'inset 0 0 5px rgba(0,0,0,0.5)', borderRadius: '2px' }} />
+                                    )))}
                                 </div>
+                                {isMobile && (
+                                    <p style={{ textAlign: 'center', color: 'rgba(255,255,255,0.6)', fontSize: '11px', marginTop: '10px' }}>
+                                        Swipe: ← → Move • ↑ Rotate • ↓ Drop
+                                    </p>
+                                )}
                             </div>
                             
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', minWidth: '200px' }}>
-                                <div style={{ background: 'linear-gradient(135deg, #667eea, #764ba2)', padding: '20px', borderRadius: '12px', color: 'white' }}>
-                                    <div style={{ fontSize: '12px', opacity: 0.9 }}>Score</div>
-                                    <div style={{ fontSize: '32px', fontWeight: 'bold' }}>{score}</div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', minWidth: isMobile ? '100%' : '220px', width: isMobile ? '100%' : 'auto' }}>
+                                <div style={{ background: 'linear-gradient(135deg, #667eea, #764ba2)', padding: isMobile ? '15px' : '20px', borderRadius: '16px', color: 'white', boxShadow: '0 10px 30px rgba(102, 126, 234, 0.5)' }}>
+                                    <div style={{ fontSize: '13px', opacity: 0.9, textTransform: 'uppercase' }}>Score</div>
+                                    <div style={{ fontSize: isMobile ? '28px' : '36px', fontWeight: 'bold' }}>{score.toLocaleString()}</div>
                                 </div>
                                 
-                                <div style={{ background: 'linear-gradient(135deg, #f093fb, #f5576c)', padding: '15px', borderRadius: '12px', color: 'white' }}>
-                                    <div style={{ fontSize: '12px', opacity: 0.9 }}>Lines</div>
-                                    <div style={{ fontSize: '26px', fontWeight: 'bold' }}>{lines}</div>
+                                <div style={{ display: 'flex', gap: '12px' }}>
+                                    <div style={{ flex: 1, background: 'linear-gradient(135deg, #f093fb, #f5576c)', padding: '12px', borderRadius: '16px', color: 'white' }}>
+                                        <div style={{ fontSize: '11px', opacity: 0.9 }}>Lines</div>
+                                        <div style={{ fontSize: '24px', fontWeight: 'bold' }}>{lines}</div>
+                                    </div>
+                                    <div style={{ flex: 1, background: 'linear-gradient(135deg, #4facfe, #00f2fe)', padding: '12px', borderRadius: '16px', color: 'white' }}>
+                                        <div style={{ fontSize: '11px', opacity: 0.9 }}>Level</div>
+                                        <div style={{ fontSize: '24px', fontWeight: 'bold' }}>{level}</div>
+                                    </div>
                                 </div>
                                 
-                                <div style={{ background: 'linear-gradient(135deg, #4facfe, #00f2fe)', padding: '15px', borderRadius: '12px', color: 'white' }}>
-                                    <div style={{ fontSize: '12px', opacity: 0.9 }}>Level</div>
-                                    <div style={{ fontSize: '26px', fontWeight: 'bold' }}>{level}</div>
-                                </div>
+                                {!isMobile && (
+                                    <div style={{ background: 'rgba(255,255,255,0.08)', padding: '15px', borderRadius: '16px', color: 'white', fontSize: '12px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                                        <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>⌨️ Controls</div>
+                                        <div>← → Move • ↑ Rotate</div>
+                                        <div>↓ Drop • Space Hard Drop</div>
+                                        <div>P Pause</div>
+                                    </div>
+                                )}
                                 
-                                <div style={{ background: 'rgba(255,255,255,0.1)', padding: '15px', borderRadius: '12px', color: 'white', fontSize: '13px' }}>
-                                    <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>Controls:</div>
-                                    <div>← → : Move</div>
-                                    <div>↑ : Rotate</div>
-                                    <div>↓ : Soft Drop</div>
-                                    <div>Space : Hard Drop</div>
-                                    <div>P : Pause</div>
-                                </div>
-                                
-                                <button onClick={() => setIsPaused(!isPaused)} style={{ background: '#eab308', color: 'black', fontWeight: 'bold', padding: '14px', borderRadius: '12px', border: 'none', cursor: 'pointer' }}>
+                                <button onClick={() => setIsPaused(!isPaused)} disabled={gameOver} style={{ background: gameOver ? '#4b5563' : 'linear-gradient(135deg, #fbbf24, #f59e0b)', color: gameOver ? '#9ca3af' : '#000', fontWeight: 'bold', padding: '14px', borderRadius: '14px', border: 'none', cursor: gameOver ? 'not-allowed' : 'pointer', fontSize: '15px', opacity: gameOver ? 0.5 : 1 }}>
                                     {isPaused ? '▶️ Resume' : '⏸️ Pause'}
                                 </button>
                                 
-                                <button onClick={startGame} style={{ background: '#10b981', color: 'white', fontWeight: 'bold', padding: '14px', borderRadius: '12px', border: 'none', cursor: 'pointer' }}>
+                                <button onClick={startGame} style={{ background: 'linear-gradient(135deg, #10b981, #059669)', color: 'white', fontWeight: 'bold', padding: '14px', borderRadius: '14px', border: 'none', cursor: 'pointer', fontSize: '15px', boxShadow: '0 8px 25px rgba(16, 185, 129, 0.5)' }}>
                                     🔄 New Game
                                 </button>
+
+                                {walletAddress && (
+                                    <>
+                                        <button onClick={handleSubmitScore} disabled={submittingScore || score === 0} style={{ background: 'linear-gradient(135deg, #8b5cf6, #6366f1)', color: 'white', fontWeight: 'bold', padding: '14px', borderRadius: '14px', border: 'none', cursor: submittingScore || score === 0 ? 'not-allowed' : 'pointer', fontSize: '15px', opacity: submittingScore || score === 0 ? 0.5 : 1, boxShadow: submittingScore || score === 0 ? 'none' : '0 8px 25px rgba(139, 92, 246, 0.5)' }}>
+                                            {submittingScore ? '⏳ Submitting...' : '📤 Submit Score'}
+                                        </button>
+                                        
+                                        <button onClick={loadLeaderboard} style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)', color: 'white', fontWeight: 'bold', padding: '14px', borderRadius: '14px', border: 'none', cursor: 'pointer', fontSize: '15px', boxShadow: '0 8px 25px rgba(245, 158, 11, 0.5)' }}>
+                                            🏆 Leaderboard
+                                        </button>
+                                    </>
+                                )}
                             </div>
                         </div>
                         
-                        {gameOver && (
-                            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
-                                <div style={{ background: 'linear-gradient(135deg, #667eea, #764ba2)', padding: '50px', borderRadius: '24px', color: 'white', textAlign: 'center' }}>
-                                    <h2 style={{ fontSize: '48px', fontWeight: 'bold', marginBottom: '25px' }}>Game Over! 🎮</h2>
-                                    <p style={{ fontSize: '28px', marginBottom: '12px' }}>Final Score: <strong>{score}</strong></p>
-                                    <p style={{ fontSize: '22px', marginBottom: '8px' }}>Lines: <strong>{lines}</strong></p>
-                                    <p style={{ fontSize: '22px', marginBottom: '35px' }}>Level: <strong>{level}</strong></p>
-                                    <button onClick={startGame} style={{ background: 'white', color: '#667eea', fontWeight: 'bold', padding: '16px 50px', borderRadius: '12px', border: 'none', cursor: 'pointer', fontSize: '18px' }}>
+                        {isMobile && (
+                            <div style={{ marginTop: '20px', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px' }}>
+                                <button onClick={() => moveHorizontal(-1)} style={{ background: 'linear-gradient(135deg, #3b82f6, #2563eb)', color: 'white', fontWeight: 'bold', padding: '18px', borderRadius: '12px', border: 'none', fontSize: '24px', boxShadow: '0 6px 20px rgba(59, 130, 246, 0.5)' }}>←</button>
+                                <button onClick={rotatePiece} style={{ background: 'linear-gradient(135deg, #10b981, #059669)', color: 'white', fontWeight: 'bold', padding: '18px', borderRadius: '12px', border: 'none', fontSize: '24px', boxShadow: '0 6px 20px rgba(16, 185, 129, 0.5)' }}>↻</button>
+                                <button onClick={hardDrop} style={{ background: 'linear-gradient(135deg, #ef4444, #dc2626)', color: 'white', fontWeight: 'bold', padding: '18px', borderRadius: '12px', border: 'none', fontSize: '24px', boxShadow: '0 6px 20px rgba(239, 68, 68, 0.5)' }}>↓↓</button>
+                                <button onClick={() => moveHorizontal(1)} style={{ background: 'linear-gradient(135deg, #3b82f6, #2563eb)', color: 'white', fontWeight: 'bold', padding: '18px', borderRadius: '12px', border: 'none', fontSize: '24px', boxShadow: '0 6px 20px rgba(59, 130, 246, 0.5)' }}>→</button>
+                            </div>
+                        )}
+                        
+                        {gameOver && !showLeaderboard && (
+                            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.95)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(10px)', padding: '20px' }}>
+                                <div style={{ background: 'linear-gradient(135deg, #667eea, #764ba2)', padding: isMobile ? '40px 30px' : '60px 70px', borderRadius: '30px', color: 'white', textAlign: 'center', boxShadow: '0 30px 80px rgba(0,0,0,0.7)', maxWidth: '500px', width: '100%' }}>
+                                    <h2 style={{ fontSize: isMobile ? '42px' : '54px', fontWeight: 'bold', marginBottom: '25px', textShadow: '3px 3px 6px rgba(0,0,0,0.4)' }}>
+                                        Game Over! 🎮
+                                    </h2>
+                                    <div style={{ background: 'rgba(255,255,255,0.15)', padding: '20px', borderRadius: '20px', marginBottom: '30px', backdropFilter: 'blur(10px)' }}>
+                                        <p style={{ fontSize: isMobile ? '28px' : '32px', marginBottom: '12px', fontWeight: 'bold' }}>{score.toLocaleString()} points</p>
+                                        <p style={{ fontSize: '18px', marginBottom: '6px', opacity: 0.95 }}>Lines: <strong>{lines}</strong></p>
+                                        <p style={{ fontSize: '18px', opacity: 0.95 }}>Level: <strong>{level}</strong></p>
+                                    </div>
+                                    {walletAddress && score > 0 && (
+                                        <button onClick={handleSubmitScore} disabled={submittingScore} style={{ background: 'rgba(255,255,255,0.2)', color: 'white', fontWeight: 'bold', padding: '14px 30px', borderRadius: '14px', border: '2px solid white', cursor: submittingScore ? 'not-allowed' : 'pointer', fontSize: '16px', marginBottom: '12px', width: '100%', opacity: submittingScore ? 0.5 : 1 }}>
+                                            {submittingScore ? '⏳ Submitting...' : '📤 Submit Score'}
+                                        </button>
+                                    )}
+                                    <button onClick={startGame} style={{ background: 'white', color: '#667eea', fontWeight: 'bold', padding: '16px 50px', borderRadius: '16px', border: 'none', cursor: 'pointer', fontSize: '18px', boxShadow: '0 8px 30px rgba(255,255,255,0.4)', width: '100%' }}>
                                         Play Again 🎯
                                     </button>
                                 </div>
                             </div>
                         )}
-                    </div>
-                    
-                    <div style={{ marginTop: '25px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                        <button onClick={() => moveHorizontal(-1)} style={{ background: '#3b82f6', color: 'white', fontWeight: 'bold', padding: '18px 32px', borderRadius: '12px', border: 'none', cursor: 'pointer', fontSize: '24px' }}>←</button>
-                        <button onClick={rotatePiece} style={{ background: '#10b981', color: 'white', fontWeight: 'bold', padding: '18px 32px', borderRadius: '12px', border: 'none', cursor: 'pointer', fontSize: '24px' }}>↻</button>
-                        <button onClick={hardDrop} style={{ background: '#ef4444', color: 'white', fontWeight: 'bold', padding: '18px 32px', borderRadius: '12px', border: 'none', cursor: 'pointer', fontSize: '24px' }}>↓↓</button>
-                        <button onClick={() => moveHorizontal(1)} style={{ background: '#3b82f6', color: 'white', fontWeight: 'bold', padding: '18px 32px', borderRadius: '12px', border: 'none', cursor: 'pointer', fontSize: '24px' }}>→</button>
+
+                        {showLeaderboard && (
+                            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.95)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(10px)', padding: '20px', overflowY: 'auto' }}>
+                                <div style={{ background: 'linear-gradient(135deg, #1a1a2e, #0f3460)', padding: isMobile ? '25px' : '40px', borderRadius: '30px', color: 'white', maxWidth: '700px', width: '100%', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 30px 80px rgba(0,0,0,0.8)', border: '2px solid rgba(102, 126, 234, 0.3)' }}>
+                                    <h2 style={{ fontSize: isMobile ? '32px' : '42px', fontWeight: 'bold', marginBottom: '25px', textAlign: 'center', textShadow: '2px 2px 4px rgba(0,0,0,0.5)' }}>
+                                        🏆 Global Leaderboard
+                                    </h2>
+                                    
+                                    {leaderboard.length === 0 ? (
+                                        <p style={{ textAlign: 'center', fontSize: '16px', opacity: 0.8, padding: '40px 20px' }}>
+                                            No scores yet. Be the first! 🎯
+                                        </p>
+                                    ) : (
+                                        <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '20px', padding: isMobile ? '15px' : '20px', marginBottom: '25px' }}>
+                                            {leaderboard.map((entry, index) => (
+                                                <div key={index} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: isMobile ? '12px 15px' : '15px 20px', background: index < 3 ? 'rgba(255, 215, 0, 0.1)' : 'rgba(255,255,255,0.03)', borderRadius: '12px', marginBottom: '8px', border: index < 3 ? '2px solid rgba(255, 215, 0, 0.3)' : '1px solid rgba(255,255,255,0.05)', flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: isMobile ? '100%' : 'auto', marginBottom: isMobile ? '8px' : '0' }}>
+                                                        <span style={{ fontSize: isMobile ? '20px' : '24px', minWidth: '30px', textAlign: 'center' }}>
+                                                            {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}`}
+                                                        </span>
+                                                        <div>
+                                                            <div style={{ fontWeight: 'bold', fontSize: isMobile ? '14px' : '16px' }}>
+                                                                {entry.username || `${entry.player.slice(0, 6)}...${entry.player.slice(-4)}`}
+                                                            </div>
+                                                            <div style={{ fontSize: isMobile ? '11px' : '12px', opacity: 0.7 }}>
+                                                                {entry.player.slice(0, 8)}...
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div style={{ textAlign: 'right', display: 'flex', gap: isMobile ? '15px' : '20px', justifyContent: isMobile ? 'space-between' : 'flex-end', width: isMobile ? '100%' : 'auto' }}>
+                                                        <div>
+                                                            <div style={{ fontSize: isMobile ? '18px' : '20px', fontWeight: 'bold', color: '#4ECDC4' }}>
+                                                                {entry.score.toLocaleString()}
+                                                            </div>
+                                                            <div style={{ fontSize: isMobile ? '10px' : '11px', opacity: 0.7 }}>points</div>
+                                                        </div>
+                                                        <div>
+                                                            <div style={{ fontSize: isMobile ? '14px' : '16px', fontWeight: 'bold' }}>
+                                                                L{entry.level}
+                                                            </div>
+                                                            <div style={{ fontSize: isMobile ? '10px' : '11px', opacity: 0.7 }}>{entry.lines} lines</div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                    
+                                    <button onClick={() => setShowLeaderboard(false)} style={{ background: 'linear-gradient(135deg, #667eea, #764ba2)', color: 'white', fontWeight: 'bold', padding: '16px', borderRadius: '16px', border: 'none', cursor: 'pointer', fontSize: '16px', width: '100%', boxShadow: '0 8px 25px rgba(102, 126, 234, 0.5)' }}>
+                                        ← Back to Game
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             );
