@@ -1,81 +1,42 @@
-/**
- * Block Drop Web3 Integration (Base Mainnet)
- */
-if (typeof ethers === 'undefined') {
-  throw new Error('Ethers.js not loaded — make sure the CDN script is included before this file.');
-}
-
-const CONTRACT_ADDRESS = '0xa6A74BDCD285Fc5b6634666D511333f47Ea7aBaf';
-const CONTRACT_ABI = [
-  "function submitScore(uint256,uint256,uint256,string)",
-  "function getTopScores(uint256) view returns (tuple(address player,uint256 score,uint256 level,uint256 lines,uint256 timestamp,string username)[])"
-];
+console.log("web3-integration.js loaded");
 
 async function connectWallet() {
-  if (!window.ethereum) throw new Error('MetaMask not found — install it first.');
-
-  await window.ethereum.request({ method: 'eth_requestAccounts' });
-  const provider = new ethers.providers.Web3Provider(window.ethereum);
-  const signer = provider.getSigner();
-  const address = await signer.getAddress();
-
-  const network = await provider.getNetwork();
-  if (network.chainId !== 8453) {
-    try {
-      await window.ethereum.request({
-        method: 'wallet_switchEthereumChain',
-        params: [{ chainId: '0x2105' }]
-      });
-    } catch (err) {
-      if (err.code === 4902) {
-        await window.ethereum.request({
-          method: 'wallet_addEthereumChain',
-          params: [{
-            chainId: '0x2105',
-            chainName: 'Base Mainnet',
-            nativeCurrency: { name: 'Ethereum', symbol: 'ETH', decimals: 18 },
-            rpcUrls: ['https://mainnet.base.org'],
-            blockExplorerUrls: ['https://basescan.org']
-          }]
-        });
-      } else {
-        throw err;
-      }
+  try {
+    if (typeof ethers === "undefined") {
+      throw new Error("Ethers.js not loaded properly.");
     }
-  }
-  return { provider, signer, address };
-}
 
-async function submitScoreToBlockchain(score, level, lines, username) {
-  try {
-    const { signer } = await connectWallet();
-    const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
-    const tx = await contract.submitScore(score, level, lines, username.trim());
-    await tx.wait();
-    return { success: true, transactionHash: tx.hash };
-  } catch (err) {
-    console.error(err);
-    return { success: false, error: err.message };
-  }
-}
+    if (!window.ethereum) {
+      alert("❌ MetaMask not detected. Please install it first.");
+      return;
+    }
 
-async function getLeaderboard(count = 10) {
-  try {
-    const provider = new ethers.providers.JsonRpcProvider('https://mainnet.base.org');
-    const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, provider);
-    const scores = await contract.getTopScores(count);
-    return scores.map(s => ({
-      player: s.player,
-      score: Number(s.score),
-      level: Number(s.level),
-      lines: Number(s.lines),
-      timestamp: Number(s.timestamp),
-      username: s.username
-    }));
-  } catch (err) {
-    console.error('Leaderboard error:', err);
-    return [];
+    // Request account access
+    const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
+    const userAddress = accounts[0];
+
+    // Create provider and signer
+    const provider = new ethers.providers.Web3Provider(window.ethereum);
+    const signer = provider.getSigner();
+
+    // Display connected wallet info
+    const shortAddr = `${userAddress.slice(0, 6)}...${userAddress.slice(-4)}`;
+    const connectBtn = document.getElementById("connectBtn");
+    const status = document.getElementById("status");
+
+    connectBtn.innerText = `✅ ${shortAddr}`;
+    status.innerText = `Connected: ${shortAddr}`;
+
+    console.log("Wallet connected:", userAddress);
+    return { userAddress, provider, signer };
+  } catch (error) {
+    console.error("Wallet connection failed:", error);
+    alert("⚠️ Wallet connection failed. Check console for details.");
   }
 }
 
-console.log('✅ Web3 Integration Loaded (Base Mainnet)');
+// Attach event listener once DOM is ready
+window.addEventListener("DOMContentLoaded", () => {
+  const connectBtn = document.getElementById("connectBtn");
+  connectBtn.addEventListener("click", connectWallet);
+});
