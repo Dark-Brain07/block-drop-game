@@ -296,4 +296,44 @@ export default function BlockDropGame() {
                 <div
                   key={`${y}-${x}`}
                   className={styles.cell}
-                  style={{ bac
+                  style={{ backgroundColor: cell || '#1a1a2e' }}
+                />
+              ))
+            )}
+          </div>
+        </div>
+
+        {isMobile && (
+          <div className={styles.mobileControls}>
+            <button onClick={() => moveHorizontal(-1)}>←</button>
+            <button onClick={rotatePiece}>↻</button>
+            <button onClick={hardDrop}>↓↓</button>
+            <button onClick={() => moveHorizontal(1)}>→</button>
+          </div>
+        )}
+
+        {!isMobile && (
+          <p className={styles.instructions}>
+            Arrow Keys: Move/Rotate | Space: Hard Drop | P: Pause
+          </p>
+        )}
+
+        {gameOver && (
+          <div className={styles.gameOverModal}>
+            <div className={styles.gameOverContent}>
+              <h2>Game Over! 🎮</h2>
+              <p className={styles.finalScore}>{score.toLocaleString()} points</p>
+              <p>Lines: {lines} | Level: {level}</p>
+              {walletAddress && score > 0 && (
+                <button onClick={handleSubmitScore} disabled={submitting}>
+                  {submitting ? '⏳ Submitting...' : '📤 Submit Score'}
+                </button>
+              )}
+              <button onClick={startGame}>Play Again 🎯</button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
