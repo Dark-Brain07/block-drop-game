@@ -1,391 +1,254 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Block Drop Game</title>
-    <script src="https://cdn.ethers.io/lib/ethers-5.2.umd.min.js"></script>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: Arial, sans-serif; background: linear-gradient(135deg, #1a1a2e, #0f3460); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
-        #game { background: rgba(0,0,0,0.4); padding: 30px; border-radius: 20px; color: white; max-width: 800px; }
-        h1 { text-align: center; margin-bottom: 20px; }
-        button { padding: 12px 24px; margin: 5px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 14px; }
-        .connect-btn { background: #3b82f6; color: white; width: 100%; margin-bottom: 20px; }
-        .connect-btn.connected { background: #10b981; }
-        #board { display: inline-grid; grid-template-columns: repeat(10, 25px); gap: 1px; background: #0a0a0a; padding: 1px; margin: 20px auto; }
-        .cell { width: 25px; height: 25px; background: #1a1a2e; }
-        .controls { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 20px; }
-        .controls button { background: #3b82f6; color: white; padding: 15px 30px; font-size: 18px; }
-        .info { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 20px; }
-        .info-box { background: linear-gradient(135deg, #667eea, #764ba2); padding: 15px; border-radius: 12px; text-align: center; }
-        .info-box .label { font-size: 12px; opacity: 0.9; }
-        .info-box .value { font-size: 28px; font-weight: bold; margin-top: 5px; }
-        .game-controls { display: flex; gap: 10px; margin-bottom: 20px; }
-        .game-controls button { flex: 1; }
-        .submit-btn { background: #8b5cf6; color: white; }
-        .leaderboard-btn { background: #f59e0b; color: white; }
-        .pause-btn { background: #eab308; color: black; }
-        .new-btn { background: #10b981; color: white; }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Block Drop Game</title>
+  
+  <!-- ✅ Ethers.js Library -->
+  <script src="https://cdn.ethers.io/lib/ethers-5.2.umd.min.js"></script>
+  
+  <!-- ✅ Web3 Integration -->
+  <script src="web3-integration.js"></script>
+
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: Arial, sans-serif;
+      background: linear-gradient(135deg, #1a1a2e, #0f3460);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    #game {
+      background: rgba(0,0,0,0.4);
+      padding: 30px;
+      border-radius: 20px;
+      color: white;
+      max-width: 800px;
+    }
+    h1 { text-align: center; margin-bottom: 20px; }
+    button {
+      padding: 12px 24px;
+      margin: 5px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: bold;
+      font-size: 14px;
+    }
+    .connect-btn { background: #3b82f6; color: white; width: 100%; margin-bottom: 20px; }
+    .connect-btn.connected { background: #10b981; }
+    #board {
+      display: inline-grid;
+      grid-template-columns: repeat(10, 25px);
+      gap: 1px;
+      background: #0a0a0a;
+      padding: 1px;
+      margin: 20px auto;
+    }
+    .cell { width: 25px; height: 25px; background: #1a1a2e; }
+    .controls { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 20px; }
+    .controls button { background: #3b82f6; color: white; padding: 15px 30px; font-size: 18px; }
+    .info { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 20px; }
+    .info-box { background: linear-gradient(135deg, #667eea, #764ba2); padding: 15px; border-radius: 12px; text-align: center; }
+    .info-box .label { font-size: 12px; opacity: 0.9; }
+    .info-box .value { font-size: 28px; font-weight: bold; margin-top: 5px; }
+    .game-controls { display: flex; gap: 10px; margin-bottom: 20px; }
+    .game-controls button { flex: 1; }
+    .submit-btn { background: #8b5cf6; color: white; }
+    .leaderboard-btn { background: #f59e0b; color: white; }
+    .pause-btn { background: #eab308; color: black; }
+    .new-btn { background: #10b981; color: white; }
+  </style>
 </head>
+
 <body>
-    <div id="game">
-        <h1>🎮 Block Drop</h1>
-        <p style="text-align: center; opacity: 0.7; margin-bottom: 20px; font-size: 12px;">Contract: 0xa6A7...aBaf</p>
-        
-        <button id="connectBtn" class="connect-btn" onclick="connectWallet()">🔗 Connect Wallet</button>
-        
-        <div class="info">
-            <div class="info-box">
-                <div class="label">Score</div>
-                <div class="value" id="score">0</div>
-            </div>
-            <div class="info-box">
-                <div class="label">Lines</div>
-                <div class="value" id="lines">0</div>
-            </div>
-            <div class="info-box">
-                <div class="label">Level</div>
-                <div class="value" id="level">1</div>
-            </div>
-        </div>
+  <div id="game">
+    <h1>🎮 Block Drop</h1>
+    <p style="text-align: center; opacity: 0.7; margin-bottom: 20px; font-size: 12px;">Contract: 0xa6A7...aBaf</p>
 
-        <div class="game-controls">
-            <button class="pause-btn" onclick="togglePause()">⏸️ Pause</button>
-            <button class="new-btn" onclick="startNewGame()">🔄 New Game</button>
-        </div>
+    <button id="connectBtn" class="connect-btn" onclick="connectWalletHandler()">🔗 Connect Wallet</button>
 
-        <div class="game-controls" id="web3controls" style="display: none;">
-            <button class="submit-btn" onclick="submitScore()">📤 Submit Score</button>
-            <button class="leaderboard-btn" onclick="showLeaderboard()">🏆 Leaderboard</button>
-        </div>
-        
-        <div style="text-align: center;">
-            <div id="board"></div>
-        </div>
-        
-        <div class="controls">
-            <button onclick="move(-1)">←</button>
-            <button onclick="rotate()">↻</button>
-            <button onclick="hardDrop()">↓↓</button>
-            <button onclick="move(1)">→</button>
-        </div>
-        
-        <p style="text-align: center; margin-top: 20px; opacity: 0.7; font-size: 13px;">
-            Arrow Keys: Move & Rotate | Space: Hard Drop | P: Pause
-        </p>
+    <div class="info">
+      <div class="info-box">
+        <div class="label">Score</div>
+        <div class="value" id="score">0</div>
+      </div>
+      <div class="info-box">
+        <div class="label">Lines</div>
+        <div class="value" id="lines">0</div>
+      </div>
+      <div class="info-box">
+        <div class="label">Level</div>
+        <div class="value" id="level">1</div>
+      </div>
     </div>
 
-    <script>
-        // Contract Configuration
-        const CONTRACT_ADDRESS = '0xa6A74BDCD285Fc5b6634666D511333f47Ea7aBaf';
-        const CONTRACT_ABI = [
-          "function submitScore(uint256 _score, uint256 _level, uint256 _lines, string memory _username) external",
-          "function getTopScores(uint256 _count) external view returns (tuple(address player, uint256 score, uint256 level, uint256 lines, uint256 timestamp, string username)[])"
-        ];
+    <div class="game-controls">
+      <button class="pause-btn" onclick="togglePause()">⏸️ Pause</button>
+      <button class="new-btn" onclick="startNewGame()">🔄 New Game</button>
+    </div>
 
-        // Game State
-        const BOARD_WIDTH = 10;
-        const BOARD_HEIGHT = 20;
-        const SHAPES = [[[1,1,1,1]], [[1,1],[1,1]], [[1,1,1],[0,1,0]], [[1,1,1],[1,0,0]], [[1,1,1],[0,0,1]], [[1,1,0],[0,1,1]], [[0,1,1],[1,1,0]]];
-        const COLORS = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8', '#F7DC6F', '#BB8FCE'];
-        
-        let board = Array(BOARD_HEIGHT).fill().map(() => Array(BOARD_WIDTH).fill(0));
-        let currentPiece = null;
-        let position = {x: 0, y: 0};
-        let score = 0;
-        let lines = 0;
-        let level = 1;
-        let gameOver = false;
-        let isPaused = false;
-        let gameInterval = null;
-        let walletAddress = null;
+    <div class="game-controls" id="web3controls" style="display: none;">
+      <button class="submit-btn" onclick="submitScoreHandler()">📤 Submit Score</button>
+      <button class="leaderboard-btn" onclick="showLeaderboardHandler()">🏆 Leaderboard</button>
+    </div>
 
-        // Initialize Board
-        function initBoard() {
-            const boardEl = document.getElementById('board');
-            boardEl.innerHTML = '';
-            for (let y = 0; y < BOARD_HEIGHT; y++) {
-                for (let x = 0; x < BOARD_WIDTH; x++) {
-                    const cell = document.createElement('div');
-                    cell.className = 'cell';
-                    cell.id = `cell-${y}-${x}`;
-                    boardEl.appendChild(cell);
-                }
+    <div style="text-align: center;">
+      <div id="board"></div>
+    </div>
+
+    <div class="controls">
+      <button onclick="move(-1)">←</button>
+      <button onclick="rotate()">↻</button>
+      <button onclick="hardDrop()">↓↓</button>
+      <button onclick="move(1)">→</button>
+    </div>
+
+    <p style="text-align: center; margin-top: 20px; opacity: 0.7; font-size: 13px;">
+      Arrow Keys: Move & Rotate | Space: Hard Drop | P: Pause
+    </p>
+  </div>
+
+  <script>
+    /*************** GAME LOGIC (same as your original) ***************/
+    const BOARD_WIDTH = 10, BOARD_HEIGHT = 20;
+    const SHAPES = [[[1,1,1,1]], [[1,1],[1,1]], [[1,1,1],[0,1,0]], [[1,1,1],[1,0,0]], [[1,1,1],[0,0,1]], [[1,1,0],[0,1,1]], [[0,1,1],[1,1,0]]];
+    const COLORS = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8', '#F7DC6F', '#BB8FCE'];
+    let board, currentPiece, position, score = 0, lines = 0, level = 1, gameOver = false, isPaused = false, gameInterval = null;
+
+    function initBoard() {
+      const boardEl = document.getElementById('board');
+      boardEl.innerHTML = '';
+      for (let y = 0; y < BOARD_HEIGHT; y++) {
+        for (let x = 0; x < BOARD_WIDTH; x++) {
+          const cell = document.createElement('div');
+          cell.className = 'cell';
+          cell.id = `cell-${y}-${x}`;
+          boardEl.appendChild(cell);
+        }
+      }
+    }
+
+    function render() {
+      for (let y = 0; y < BOARD_HEIGHT; y++) {
+        for (let x = 0; x < BOARD_WIDTH; x++) {
+          const cell = document.getElementById(`cell-${y}-${x}`);
+          cell.style.backgroundColor = board[y][x] || '#1a1a2e';
+        }
+      }
+      if (currentPiece) {
+        currentPiece.shape.forEach((row, y) => {
+          row.forEach((val, x) => {
+            if (val) {
+              const bx = position.x + x, by = position.y + y;
+              if (by >= 0 && by < BOARD_HEIGHT && bx >= 0 && bx < BOARD_WIDTH)
+                document.getElementById(`cell-${by}-${bx}`).style.backgroundColor = currentPiece.color;
             }
-        }
-
-        // Render Board
-        function render() {
-            for (let y = 0; y < BOARD_HEIGHT; y++) {
-                for (let x = 0; x < BOARD_WIDTH; x++) {
-                    const cell = document.getElementById(`cell-${y}-${x}`);
-                    cell.style.backgroundColor = board[y][x] || '#1a1a2e';
-                }
-            }
-            
-            if (currentPiece) {
-                currentPiece.shape.forEach((row, y) => {
-                    row.forEach((value, x) => {
-                        if (value) {
-                            const boardY = position.y + y;
-                            const boardX = position.x + x;
-                            if (boardY >= 0 && boardY < BOARD_HEIGHT && boardX >= 0 && boardX < BOARD_WIDTH) {
-                                const cell = document.getElementById(`cell-${boardY}-${boardX}`);
-                                cell.style.backgroundColor = currentPiece.color;
-                            }
-                        }
-                    });
-                });
-            }
-            
-            document.getElementById('score').textContent = score.toLocaleString();
-            document.getElementById('lines').textContent = lines;
-            document.getElementById('level').textContent = level;
-        }
-
-        // Create New Piece
-        function createPiece() {
-            const idx = Math.floor(Math.random() * SHAPES.length);
-            return { shape: SHAPES[idx], color: COLORS[idx] };
-        }
-
-        // Check Collision
-        function checkCollision(piece, pos) {
-            for (let y = 0; y < piece.shape.length; y++) {
-                for (let x = 0; x < piece.shape[y].length; x++) {
-                    if (piece.shape[y][x]) {
-                        const newX = pos.x + x;
-                        const newY = pos.y + y;
-                        if (newX < 0 || newX >= BOARD_WIDTH || newY >= BOARD_HEIGHT) return true;
-                        if (newY >= 0 && board[newY][newX]) return true;
-                    }
-                }
-            }
-            return false;
-        }
-
-        // Merge Piece
-        function mergePiece() {
-            currentPiece.shape.forEach((row, y) => {
-                row.forEach((value, x) => {
-                    if (value && position.y + y >= 0) {
-                        board[position.y + y][position.x + x] = currentPiece.color;
-                    }
-                });
-            });
-        }
-
-        // Clear Lines
-        function clearLines() {
-            let cleared = 0;
-            for (let y = BOARD_HEIGHT - 1; y >= 0; y--) {
-                if (board[y].every(cell => cell !== 0)) {
-                    board.splice(y, 1);
-                    board.unshift(Array(BOARD_WIDTH).fill(0));
-                    cleared++;
-                    y++;
-                }
-            }
-            if (cleared > 0) {
-                lines += cleared;
-                score += cleared * 100 * level;
-                level = Math.floor(lines / 10) + 1;
-            }
-        }
-
-        // Move Down
-        function moveDown() {
-            if (isPaused || gameOver) return;
-            
-            const newPos = {x: position.x, y: position.y + 1};
-            if (!checkCollision(currentPiece, newPos)) {
-                position = newPos;
-            } else {
-                mergePiece();
-                clearLines();
-                currentPiece = createPiece();
-                position = {x: Math.floor(BOARD_WIDTH / 2) - 1, y: 0};
-                
-                if (checkCollision(currentPiece, position)) {
-                    gameOver = true;
-                    clearInterval(gameInterval);
-                    alert(`Game Over! Final Score: ${score}`);
-                }
-            }
-            render();
-        }
-
-        // Move Horizontal
-        function move(dir) {
-            if (isPaused || gameOver) return;
-            const newPos = {x: position.x + dir, y: position.y};
-            if (!checkCollision(currentPiece, newPos)) {
-                position = newPos;
-                render();
-            }
-        }
-
-        // Rotate
-        function rotate() {
-            if (isPaused || gameOver) return;
-            const rotated = currentPiece.shape[0].map((_, i) => 
-                currentPiece.shape.map(row => row[i]).reverse()
-            );
-            const rotatedPiece = {...currentPiece, shape: rotated};
-            if (!checkCollision(rotatedPiece, position)) {
-                currentPiece = rotatedPiece;
-                render();
-            }
-        }
-
-        // Hard Drop
-        function hardDrop() {
-            if (isPaused || gameOver) return;
-            while (!checkCollision(currentPiece, {x: position.x, y: position.y + 1})) {
-                position.y++;
-            }
-            render();
-            setTimeout(moveDown, 50);
-        }
-
-        // Toggle Pause
-        function togglePause() {
-            isPaused = !isPaused;
-            document.querySelector('.pause-btn').textContent = isPaused ? '▶️ Resume' : '⏸️ Pause';
-        }
-
-        // Start New Game
-        function startNewGame() {
-            board = Array(BOARD_HEIGHT).fill().map(() => Array(BOARD_WIDTH).fill(0));
-            currentPiece = createPiece();
-            position = {x: Math.floor(BOARD_WIDTH / 2) - 1, y: 0};
-            score = 0;
-            lines = 0;
-            level = 1;
-            gameOver = false;
-            isPaused = false;
-            
-            if (gameInterval) clearInterval(gameInterval);
-            gameInterval = setInterval(moveDown, 1000);
-            render();
-        }
-
-        // Keyboard Controls
-        document.addEventListener('keydown', (e) => {
-            if (gameOver) return;
-            switch(e.key) {
-                case 'ArrowLeft': move(-1); break;
-                case 'ArrowRight': move(1); break;
-                case 'ArrowDown': moveDown(); break;
-                case 'ArrowUp': rotate(); break;
-                case ' ': e.preventDefault(); hardDrop(); break;
-                case 'p': case 'P': togglePause(); break;
-            }
+          });
         });
+      }
+      document.getElementById('score').textContent = score.toLocaleString();
+      document.getElementById('lines').textContent = lines;
+      document.getElementById('level').textContent = level;
+    }
 
-        // Web3 Functions
-        async function connectWallet() {
-            try {
-                if (typeof window.ethereum === 'undefined') {
-                    alert('Please install MetaMask!');
-                    window.open('https://metamask.io/download/', '_blank');
-                    return;
-                }
+    function createPiece() { const i = Math.floor(Math.random() * SHAPES.length); return { shape: SHAPES[i], color: COLORS[i] }; }
 
-                await window.ethereum.request({ method: 'eth_requestAccounts' });
-                const provider = new ethers.providers.Web3Provider(window.ethereum);
-                const signer = provider.getSigner();
-                walletAddress = await signer.getAddress();
-                
-                // Check/Switch to Base
-                const network = await provider.getNetwork();
-                if (network.chainId !== 8453) {
-                    try {
-                        await window.ethereum.request({
-                            method: 'wallet_switchEthereumChain',
-                            params: [{ chainId: '0x2105' }],
-                        });
-                    } catch (switchError) {
-                        if (switchError.code === 4902) {
-                            await window.ethereum.request({
-                                method: 'wallet_addEthereumChain',
-                                params: [{
-                                    chainId: '0x2105',
-                                    chainName: 'Base',
-                                    nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 },
-                                    rpcUrls: ['https://mainnet.base.org'],
-                                    blockExplorerUrls: ['https://basescan.org']
-                                }]
-                            });
-                        }
-                    }
-                }
-                
-                document.getElementById('connectBtn').textContent = `🔗 ${walletAddress.slice(0,6)}...${walletAddress.slice(-4)}`;
-                document.getElementById('connectBtn').classList.add('connected');
-                document.getElementById('web3controls').style.display = 'flex';
-                alert('✅ Wallet Connected!');
-            } catch (error) {
-                console.error('Connection error:', error);
-                alert('❌ Connection failed: ' + error.message);
-            }
+    function checkCollision(p, pos) {
+      for (let y = 0; y < p.shape.length; y++)
+        for (let x = 0; x < p.shape[y].length; x++)
+          if (p.shape[y][x]) {
+            const nx = pos.x + x, ny = pos.y + y;
+            if (nx < 0 || nx >= BOARD_WIDTH || ny >= BOARD_HEIGHT || (ny >= 0 && board[ny][nx])) return true;
+          }
+      return false;
+    }
+
+    function mergePiece() {
+      currentPiece.shape.forEach((row, y) => row.forEach((v, x) => { if (v && position.y + y >= 0) board[position.y + y][position.x + x] = currentPiece.color; }));
+    }
+
+    function clearLines() {
+      let cleared = 0;
+      for (let y = BOARD_HEIGHT - 1; y >= 0; y--) {
+        if (board[y].every(c => c !== 0)) {
+          board.splice(y, 1);
+          board.unshift(Array(BOARD_WIDTH).fill(0));
+          cleared++; y++;
         }
+      }
+      if (cleared) { lines += cleared; score += cleared * 100 * level; level = Math.floor(lines / 10) + 1; }
+    }
 
-        async function submitScore() {
-            if (!walletAddress) {
-                alert('Connect wallet first!');
-                return;
-            }
-            if (score === 0) {
-                alert('Play the game first!');
-                return;
-            }
+    function moveDown() {
+      if (isPaused || gameOver) return;
+      const np = {x: position.x, y: position.y + 1};
+      if (!checkCollision(currentPiece, np)) position = np;
+      else {
+        mergePiece(); clearLines();
+        currentPiece = createPiece(); position = {x: 4, y: 0};
+        if (checkCollision(currentPiece, position)) { gameOver = true; clearInterval(gameInterval); alert(`Game Over! Final Score: ${score}`); }
+      }
+      render();
+    }
 
-            const username = prompt('Enter your username (max 20 chars):');
-            if (!username) return;
+    function move(d) { if (!isPaused && !gameOver && !checkCollision(currentPiece, {x: position.x + d, y: position.y})) { position.x += d; render(); } }
+    function rotate() {
+      if (isPaused || gameOver) return;
+      const r = currentPiece.shape[0].map((_, i) => currentPiece.shape.map(r => r[i]).reverse());
+      const rp = {...currentPiece, shape: r};
+      if (!checkCollision(rp, position)) currentPiece = rp;
+      render();
+    }
+    function hardDrop() { while (!checkCollision(currentPiece, {x: position.x, y: position.y + 1})) position.y++; render(); setTimeout(moveDown, 50); }
+    function togglePause() { isPaused = !isPaused; document.querySelector('.pause-btn').textContent = isPaused ? '▶️ Resume' : '⏸️ Pause'; }
+    function startNewGame() { board = Array(BOARD_HEIGHT).fill().map(() => Array(BOARD_WIDTH).fill(0)); currentPiece = createPiece(); position = {x:4,y:0}; score=0;lines=0;level=1;gameOver=false;isPaused=false; if(gameInterval) clearInterval(gameInterval); gameInterval=setInterval(moveDown,1000); render(); }
 
-            try {
-                const provider = new ethers.providers.Web3Provider(window.ethereum);
-                const signer = provider.getSigner();
-                const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
-                
-                const tx = await contract.submitScore(score, level, lines, username);
-                alert('⏳ Transaction sent! Waiting for confirmation...');
-                
-                await tx.wait();
-                alert(`🎉 Score submitted!\n\nScore: ${score}\nTx: ${tx.hash.slice(0,10)}...`);
-            } catch (error) {
-                console.error('Submit error:', error);
-                alert('❌ Failed: ' + (error.reason || error.message));
-            }
-        }
+    document.addEventListener('keydown', e => {
+      if (gameOver) return;
+      if (e.key === 'ArrowLeft') move(-1);
+      else if (e.key === 'ArrowRight') move(1);
+      else if (e.key === 'ArrowDown') moveDown();
+      else if (e.key === 'ArrowUp') rotate();
+      else if (e.key === ' ') { e.preventDefault(); hardDrop(); }
+      else if (e.key.toLowerCase() === 'p') togglePause();
+    });
 
-        async function showLeaderboard() {
-            try {
-                const provider = new ethers.providers.JsonRpcProvider('https://mainnet.base.org');
-                const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, provider);
-                const scores = await contract.getTopScores(10);
-                
-                let msg = '🏆 TOP 10 LEADERBOARD 🏆\n\n';
-                scores.forEach((s, i) => {
-                    msg += `${i+1}. ${s.username || s.player.slice(0,8)}\n`;
-                    msg += `   Score: ${s.score.toNumber().toLocaleString()} | Level: ${s.level.toNumber()}\n\n`;
-                });
-                
-                alert(msg);
-            } catch (error) {
-                console.error('Leaderboard error:', error);
-                alert('❌ Failed to load leaderboard');
-            }
-        }
+    window.onload = () => { initBoard(); startNewGame(); };
 
-        // Start Game on Load
-        window.onload = () => {
-            initBoard();
-            startNewGame();
-        };
-    </script>
+    /*************** WEB3 HANDLERS ***************/
+    async function connectWalletHandler() {
+      try {
+        const { address } = await connectWallet();
+        document.getElementById('connectBtn').textContent = `🔗 ${address.slice(0,6)}...${address.slice(-4)}`;
+        document.getElementById('connectBtn').classList.add('connected');
+        document.getElementById('web3controls').style.display = 'flex';
+        alert('✅ Wallet Connected!');
+      } catch (err) {
+        alert('❌ ' + err.message);
+      }
+    }
+
+    async function submitScoreHandler() {
+      if (score <= 0) return alert('Play before submitting!');
+      const username = prompt('Enter your username (max 20 chars):');
+      if (!username) return;
+      const result = await submitScoreToBlockchain(score, level, lines, username);
+      alert(result.success ? `🎉 Score submitted!\nTx: ${result.transactionHash}` : '❌ ' + result.error);
+    }
+
+    async function showLeaderboardHandler() {
+      const leaderboard = await getLeaderboard();
+      let msg = '🏆 TOP 10 LEADERBOARD 🏆\n\n';
+      leaderboard.forEach((s, i) => {
+        msg += `${i+1}. ${s.username || s.player.slice(0,8)}\n   Score: ${s.score.toLocaleString()} | Level: ${s.level}\n\n`;
+      });
+      alert(msg);
+    }
+  </script>
 </body>
 </html>
