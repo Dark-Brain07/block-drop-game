@@ -2,629 +2,390 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Block Drop - Web3 Puzzle Game</title>
-    
-    <!-- Load Ethers.js FIRST -->
-    <script src="https://cdn.ethers.io/lib/ethers-5.2.umd.min.js" type="application/javascript"></script>
-    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Block Drop Game</title>
+    <script src="https://cdn.ethers.io/lib/ethers-5.2.umd.min.js"></script>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; overflow-x: hidden; touch-action: manipulation; }
-        #root { width: 100%; min-height: 100vh; }
-        .loading { display: flex; align-items: center; justify-content: center; min-height: 100vh; color: white; font-size: 24px; background: linear-gradient(135deg, #1a1a2e, #0f3460); }
-        button { touch-action: manipulation; -webkit-user-select: none; user-select: none; }
-        @media (max-width: 768px) { .game-board { transform: scale(0.9); transform-origin: top center; } }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background: linear-gradient(135deg, #1a1a2e, #0f3460); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+        #game { background: rgba(0,0,0,0.4); padding: 30px; border-radius: 20px; color: white; max-width: 800px; }
+        h1 { text-align: center; margin-bottom: 20px; }
+        button { padding: 12px 24px; margin: 5px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 14px; }
+        .connect-btn { background: #3b82f6; color: white; width: 100%; margin-bottom: 20px; }
+        .connect-btn.connected { background: #10b981; }
+        #board { display: inline-grid; grid-template-columns: repeat(10, 25px); gap: 1px; background: #0a0a0a; padding: 1px; margin: 20px auto; }
+        .cell { width: 25px; height: 25px; background: #1a1a2e; }
+        .controls { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 20px; }
+        .controls button { background: #3b82f6; color: white; padding: 15px 30px; font-size: 18px; }
+        .info { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 20px; }
+        .info-box { background: linear-gradient(135deg, #667eea, #764ba2); padding: 15px; border-radius: 12px; text-align: center; }
+        .info-box .label { font-size: 12px; opacity: 0.9; }
+        .info-box .value { font-size: 28px; font-weight: bold; margin-top: 5px; }
+        .game-controls { display: flex; gap: 10px; margin-bottom: 20px; }
+        .game-controls button { flex: 1; }
+        .submit-btn { background: #8b5cf6; color: white; }
+        .leaderboard-btn { background: #f59e0b; color: white; }
+        .pause-btn { background: #eab308; color: black; }
+        .new-btn { background: #10b981; color: white; }
     </style>
 </head>
 <body>
-    <div id="root"><div class="loading">Loading Block Drop... 🎮</div></div>
-
-    <!-- Web3 Integration - Load BEFORE React -->
-    <script type="application/javascript">
-        console.log('Loading Web3 integration...');
+    <div id="game">
+        <h1>🎮 Block Drop</h1>
+        <p style="text-align: center; opacity: 0.7; margin-bottom: 20px; font-size: 12px;">Contract: 0xa6A7...aBaf</p>
         
-        // Contract configuration
+        <button id="connectBtn" class="connect-btn" onclick="connectWallet()">🔗 Connect Wallet</button>
+        
+        <div class="info">
+            <div class="info-box">
+                <div class="label">Score</div>
+                <div class="value" id="score">0</div>
+            </div>
+            <div class="info-box">
+                <div class="label">Lines</div>
+                <div class="value" id="lines">0</div>
+            </div>
+            <div class="info-box">
+                <div class="label">Level</div>
+                <div class="value" id="level">1</div>
+            </div>
+        </div>
+
+        <div class="game-controls">
+            <button class="pause-btn" onclick="togglePause()">⏸️ Pause</button>
+            <button class="new-btn" onclick="startNewGame()">🔄 New Game</button>
+        </div>
+
+        <div class="game-controls" id="web3controls" style="display: none;">
+            <button class="submit-btn" onclick="submitScore()">📤 Submit Score</button>
+            <button class="leaderboard-btn" onclick="showLeaderboard()">🏆 Leaderboard</button>
+        </div>
+        
+        <div style="text-align: center;">
+            <div id="board"></div>
+        </div>
+        
+        <div class="controls">
+            <button onclick="move(-1)">←</button>
+            <button onclick="rotate()">↻</button>
+            <button onclick="hardDrop()">↓↓</button>
+            <button onclick="move(1)">→</button>
+        </div>
+        
+        <p style="text-align: center; margin-top: 20px; opacity: 0.7; font-size: 13px;">
+            Arrow Keys: Move & Rotate | Space: Hard Drop | P: Pause
+        </p>
+    </div>
+
+    <script>
+        // Contract Configuration
         const CONTRACT_ADDRESS = '0xa6A74BDCD285Fc5b6634666D511333f47Ea7aBaf';
         const CONTRACT_ABI = [
           "function submitScore(uint256 _score, uint256 _level, uint256 _lines, string memory _username) external",
-          "function getTopScores(uint256 _count) external view returns (tuple(address player, uint256 score, uint256 level, uint256 lines, uint256 timestamp, string username)[])",
-          "function getPlayerBestScore(address _player) external view returns (uint256)",
-          "function getTotalScores() external view returns (uint256)"
+          "function getTopScores(uint256 _count) external view returns (tuple(address player, uint256 score, uint256 level, uint256 lines, uint256 timestamp, string username)[])"
         ];
 
-        // Wait for ethers to load
-        function waitForEthers() {
-            return new Promise((resolve) => {
-                if (typeof ethers !== 'undefined') {
-                    resolve();
-                } else {
-                    setTimeout(() => waitForEthers().then(resolve), 100);
-                }
-            });
-        }
-
-        // Initialize Web3 functions
-        waitForEthers().then(() => {
-            console.log('✅ Ethers.js loaded');
-
-            // Connect Wallet Function
-            window.web3Connect = async function() {
-                console.log('Attempting wallet connection...');
-                
-                if (typeof window.ethereum === 'undefined') {
-                    throw new Error('MetaMask not installed');
-                }
-
-                try {
-                    await window.ethereum.request({ method: 'eth_requestAccounts' });
-                    const provider = new ethers.providers.Web3Provider(window.ethereum);
-                    const signer = provider.getSigner();
-                    const address = await signer.getAddress();
-                    
-                    console.log('Wallet connected:', address);
-                    
-                    // Check network
-                    const network = await provider.getNetwork();
-                    console.log('Current network:', network.chainId);
-                    
-                    if (network.chainId !== 8453) {
-                        console.log('Switching to Base network...');
-                        try {
-                            await window.ethereum.request({
-                                method: 'wallet_switchEthereumChain',
-                                params: [{ chainId: '0x2105' }],
-                            });
-                        } catch (switchError) {
-                            if (switchError.code === 4902) {
-                                await window.ethereum.request({
-                                    method: 'wallet_addEthereumChain',
-                                    params: [{
-                                        chainId: '0x2105',
-                                        chainName: 'Base',
-                                        nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 },
-                                        rpcUrls: ['https://mainnet.base.org'],
-                                        blockExplorerUrls: ['https://basescan.org']
-                                    }]
-                                });
-                            } else {
-                                throw switchError;
-                            }
-                        }
-                    }
-                    
-                    return { provider, signer, address };
-                } catch (error) {
-                    console.error('Connection error:', error);
-                    throw error;
-                }
-            };
-
-            // Submit Score Function
-            window.web3SubmitScore = async function(score, level, lines, username) {
-                console.log('Submitting score...', { score, level, lines, username });
-                
-                try {
-                    const { signer } = await window.web3Connect();
-                    const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
-                    
-                    console.log('Sending transaction...');
-                    const tx = await contract.submitScore(score, level, lines, username);
-                    console.log('Transaction sent:', tx.hash);
-                    
-                    const receipt = await tx.wait();
-                    console.log('Transaction confirmed:', receipt.transactionHash);
-                    
-                    return { success: true, hash: receipt.transactionHash };
-                } catch (error) {
-                    console.error('Submit error:', error);
-                    return { success: false, error: error.message || 'Unknown error' };
-                }
-            };
-
-            // Get Leaderboard Function
-            window.web3GetLeaderboard = async function(count = 10) {
-                console.log('Fetching leaderboard...');
-                
-                try {
-                    const provider = new ethers.providers.JsonRpcProvider('https://mainnet.base.org');
-                    const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, provider);
-                    const scores = await contract.getTopScores(count);
-                    
-                    const formatted = scores.map(s => ({
-                        player: s.player,
-                        score: s.score.toNumber(),
-                        level: s.level.toNumber(),
-                        lines: s.lines.toNumber(),
-                        timestamp: s.timestamp.toNumber(),
-                        username: s.username
-                    }));
-                    
-                    console.log('Leaderboard fetched:', formatted.length, 'scores');
-                    return formatted;
-                } catch (error) {
-                    console.error('Leaderboard error:', error);
-                    return [];
-                }
-            };
-
-            // Get Total Scores Function
-            window.web3GetTotal = async function() {
-                try {
-                    const provider = new ethers.providers.JsonRpcProvider('https://mainnet.base.org');
-                    const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, provider);
-                    const total = await contract.getTotalScores();
-                    return total.toNumber();
-                } catch (error) {
-                    console.error('Total scores error:', error);
-                    return 0;
-                }
-            };
-
-            console.log('✅ Web3 functions ready');
-            console.log('Contract:', CONTRACT_ADDRESS);
-        });
-    </script>
-
-    <!-- Load React -->
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-
-    <!-- Game Component -->
-    <script type="text/babel">
-        const { useState, useEffect, useCallback, useRef } = React;
-
+        // Game State
         const BOARD_WIDTH = 10;
         const BOARD_HEIGHT = 20;
-        const BLOCK_SIZE = 25;
         const SHAPES = [[[1,1,1,1]], [[1,1],[1,1]], [[1,1,1],[0,1,0]], [[1,1,1],[1,0,0]], [[1,1,1],[0,0,1]], [[1,1,0],[0,1,1]], [[0,1,1],[1,1,0]]];
         const COLORS = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8', '#F7DC6F', '#BB8FCE'];
+        
+        let board = Array(BOARD_HEIGHT).fill().map(() => Array(BOARD_WIDTH).fill(0));
+        let currentPiece = null;
+        let position = {x: 0, y: 0};
+        let score = 0;
+        let lines = 0;
+        let level = 1;
+        let gameOver = false;
+        let isPaused = false;
+        let gameInterval = null;
+        let walletAddress = null;
 
-        function BlockDropGame() {
-            const [board, setBoard] = useState(Array(BOARD_HEIGHT).fill(null).map(() => Array(BOARD_WIDTH).fill(0)));
-            const [currentPiece, setCurrentPiece] = useState(null);
-            const [position, setPosition] = useState({ x: 0, y: 0 });
-            const [score, setScore] = useState(0);
-            const [gameOver, setGameOver] = useState(false);
-            const [isPaused, setIsPaused] = useState(false);
-            const [level, setLevel] = useState(1);
-            const [lines, setLines] = useState(0);
-            const [walletAddress, setWalletAddress] = useState('');
-            const [leaderboard, setLeaderboard] = useState([]);
-            const [showLeaderboard, setShowLeaderboard] = useState(false);
-            const [submittingScore, setSubmittingScore] = useState(false);
-            const [totalScores, setTotalScores] = useState(0);
-            const [isMobile, setIsMobile] = useState(false);
-            
-            const touchStartX = useRef(0);
-            const touchStartY = useRef(0);
-
-            useEffect(() => {
-                const checkMobile = () => setIsMobile(window.innerWidth <= 768 || 'ontouchstart' in window);
-                checkMobile();
-                window.addEventListener('resize', checkMobile);
-                return () => window.removeEventListener('resize', checkMobile);
-            }, []);
-
-            const createNewPiece = useCallback(() => {
-                const shapeIndex = Math.floor(Math.random() * SHAPES.length);
-                return { shape: SHAPES[shapeIndex], color: COLORS[shapeIndex] };
-            }, []);
-
-            const checkCollision = useCallback((piece, pos, testBoard = board) => {
-                if (!piece) return true;
-                for (let y = 0; y < piece.shape.length; y++) {
-                    for (let x = 0; x < piece.shape[y].length; x++) {
-                        if (piece.shape[y][x]) {
-                            const newX = pos.x + x;
-                            const newY = pos.y + y;
-                            if (newX < 0 || newX >= BOARD_WIDTH || newY >= BOARD_HEIGHT) return true;
-                            if (newY >= 0 && testBoard[newY][newX]) return true;
-                        }
-                    }
+        // Initialize Board
+        function initBoard() {
+            const boardEl = document.getElementById('board');
+            boardEl.innerHTML = '';
+            for (let y = 0; y < BOARD_HEIGHT; y++) {
+                for (let x = 0; x < BOARD_WIDTH; x++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    cell.id = `cell-${y}-${x}`;
+                    boardEl.appendChild(cell);
                 }
-                return false;
-            }, [board]);
+            }
+        }
 
-            const mergePiece = useCallback(() => {
-                const newBoard = board.map(row => [...row]);
+        // Render Board
+        function render() {
+            for (let y = 0; y < BOARD_HEIGHT; y++) {
+                for (let x = 0; x < BOARD_WIDTH; x++) {
+                    const cell = document.getElementById(`cell-${y}-${x}`);
+                    cell.style.backgroundColor = board[y][x] || '#1a1a2e';
+                }
+            }
+            
+            if (currentPiece) {
                 currentPiece.shape.forEach((row, y) => {
                     row.forEach((value, x) => {
                         if (value) {
                             const boardY = position.y + y;
                             const boardX = position.x + x;
-                            if (boardY >= 0) newBoard[boardY][boardX] = currentPiece.color;
+                            if (boardY >= 0 && boardY < BOARD_HEIGHT && boardX >= 0 && boardX < BOARD_WIDTH) {
+                                const cell = document.getElementById(`cell-${boardY}-${boardX}`);
+                                cell.style.backgroundColor = currentPiece.color;
+                            }
                         }
                     });
                 });
-                return newBoard;
-            }, [board, currentPiece, position]);
+            }
+            
+            document.getElementById('score').textContent = score.toLocaleString();
+            document.getElementById('lines').textContent = lines;
+            document.getElementById('level').textContent = level;
+        }
 
-            const clearLines = useCallback((testBoard) => {
-                let linesCleared = 0;
-                const newBoard = testBoard.filter(row => {
-                    if (row.every(cell => cell !== 0)) {
-                        linesCleared++;
-                        return false;
+        // Create New Piece
+        function createPiece() {
+            const idx = Math.floor(Math.random() * SHAPES.length);
+            return { shape: SHAPES[idx], color: COLORS[idx] };
+        }
+
+        // Check Collision
+        function checkCollision(piece, pos) {
+            for (let y = 0; y < piece.shape.length; y++) {
+                for (let x = 0; x < piece.shape[y].length; x++) {
+                    if (piece.shape[y][x]) {
+                        const newX = pos.x + x;
+                        const newY = pos.y + y;
+                        if (newX < 0 || newX >= BOARD_WIDTH || newY >= BOARD_HEIGHT) return true;
+                        if (newY >= 0 && board[newY][newX]) return true;
                     }
-                    return true;
+                }
+            }
+            return false;
+        }
+
+        // Merge Piece
+        function mergePiece() {
+            currentPiece.shape.forEach((row, y) => {
+                row.forEach((value, x) => {
+                    if (value && position.y + y >= 0) {
+                        board[position.y + y][position.x + x] = currentPiece.color;
+                    }
                 });
-                while (newBoard.length < BOARD_HEIGHT) {
-                    newBoard.unshift(Array(BOARD_WIDTH).fill(0));
-                }
-                return { newBoard, linesCleared };
-            }, []);
-
-            const rotatePiece = useCallback(() => {
-                if (!currentPiece || isPaused || gameOver) return;
-                const rotated = currentPiece.shape[0].map((_, i) => currentPiece.shape.map(row => row[i]).reverse());
-                const rotatedPiece = { ...currentPiece, shape: rotated };
-                if (!checkCollision(rotatedPiece, position)) setCurrentPiece(rotatedPiece);
-            }, [currentPiece, position, checkCollision, isPaused, gameOver]);
-
-            const moveDown = useCallback(() => {
-                if (!currentPiece || isPaused || gameOver) return;
-                const newPos = { x: position.x, y: position.y + 1 };
-                if (!checkCollision(currentPiece, newPos)) {
-                    setPosition(newPos);
-                } else {
-                    const mergedBoard = mergePiece();
-                    const { newBoard, linesCleared } = clearLines(mergedBoard);
-                    setBoard(newBoard);
-                    setLines(prev => prev + linesCleared);
-                    setScore(prev => prev + (linesCleared * 100 * level));
-                    setLevel(Math.floor((lines + linesCleared) / 10) + 1);
-                    const newPiece = createNewPiece();
-                    const startPos = { x: Math.floor(BOARD_WIDTH / 2) - 1, y: 0 };
-                    if (checkCollision(newPiece, startPos, newBoard)) {
-                        setGameOver(true);
-                    } else {
-                        setCurrentPiece(newPiece);
-                        setPosition(startPos);
-                    }
-                }
-            }, [currentPiece, position, checkCollision, mergePiece, clearLines, createNewPiece, isPaused, gameOver, level, lines]);
-
-            const moveHorizontal = useCallback((direction) => {
-                if (!currentPiece || isPaused || gameOver) return;
-                const newPos = { x: position.x + direction, y: position.y };
-                if (!checkCollision(currentPiece, newPos)) setPosition(newPos);
-            }, [currentPiece, position, checkCollision, isPaused, gameOver]);
-
-            const hardDrop = useCallback(() => {
-                if (!currentPiece || isPaused || gameOver) return;
-                let newY = position.y;
-                while (!checkCollision(currentPiece, { x: position.x, y: newY + 1 })) newY++;
-                setPosition({ x: position.x, y: newY });
-                setTimeout(moveDown, 50);
-            }, [currentPiece, position, checkCollision, moveDown, isPaused, gameOver]);
-
-            const handleTouchStart = useCallback((e) => {
-                touchStartX.current = e.touches[0].clientX;
-                touchStartY.current = e.touches[0].clientY;
-            }, []);
-
-            const handleTouchEnd = useCallback((e) => {
-                if (gameOver || isPaused) return;
-                const touchEndX = e.changedTouches[0].clientX;
-                const touchEndY = e.changedTouches[0].clientY;
-                const deltaX = touchEndX - touchStartX.current;
-                const deltaY = touchEndY - touchStartY.current;
-                
-                if (Math.abs(deltaX) > Math.abs(deltaY)) {
-                    if (Math.abs(deltaX) > 30) moveHorizontal(deltaX > 0 ? 1 : -1);
-                } else {
-                    if (deltaY > 50) hardDrop();
-                    else if (deltaY < -30) rotatePiece();
-                }
-            }, [gameOver, isPaused, moveHorizontal, hardDrop, rotatePiece]);
-
-            const handleConnectWallet = async () => {
-                try {
-                    console.log('Connect wallet button clicked');
-                    
-                    if (typeof window.web3Connect === 'undefined') {
-                        alert('⚠️ Web3 still loading. Please wait a moment and try again.');
-                        return;
-                    }
-                    
-                    const { address } = await window.web3Connect();
-                    setWalletAddress(address);
-                    alert('✅ Wallet Connected!\n\n' + address.slice(0, 6) + '...' + address.slice(-4));
-                    loadTotalScores();
-                } catch (error) {
-                    console.error('Connection error:', error);
-                    if (error.message && error.message.includes('MetaMask')) {
-                        const install = window.confirm('MetaMask not detected!\n\nInstall MetaMask to submit scores?');
-                        if (install) window.open('https://metamask.io/download/', '_blank');
-                    } else {
-                        alert('❌ Failed: ' + (error.message || 'Unknown error'));
-                    }
-                }
-            };
-
-            const handleSubmitScore = async () => {
-                if (!walletAddress) {
-                    alert('⚠️ Connect wallet first!');
-                    return;
-                }
-                if (score === 0) {
-                    alert('⚠️ Play the game first!');
-                    return;
-                }
-
-                const username = prompt('Enter username (max 20 chars):');
-                if (!username || username.trim() === '') return;
-
-                setSubmittingScore(true);
-                try {
-                    const result = await window.web3SubmitScore(score, level, lines, username.trim());
-                    if (result.success) {
-                        alert(`🎉 Score Submitted!\n\nTx: ${result.hash.slice(0, 10)}...`);
-                        loadLeaderboard();
-                        loadTotalScores();
-                    } else {
-                        alert('❌ Failed:\n' + (result.error || 'Unknown').slice(0, 100));
-                    }
-                } catch (error) {
-                    alert('❌ Error:\n' + (error.message || 'Unknown').slice(0, 100));
-                } finally {
-                    setSubmittingScore(false);
-                }
-            };
-
-            const loadLeaderboard = async () => {
-                try {
-                    const scores = await window.web3GetLeaderboard(10);
-                    setLeaderboard(scores);
-                    setShowLeaderboard(true);
-                } catch (error) {
-                    console.error('Leaderboard error:', error);
-                }
-            };
-
-            const loadTotalScores = async () => {
-                try {
-                    if (window.web3GetTotal) {
-                        const total = await window.web3GetTotal();
-                        setTotalScores(total);
-                    }
-                } catch (error) {
-                    console.error('Total error:', error);
-                }
-            };
-
-            const startGame = () => {
-                setBoard(Array(BOARD_HEIGHT).fill(null).map(() => Array(BOARD_WIDTH).fill(0)));
-                const newPiece = createNewPiece();
-                setCurrentPiece(newPiece);
-                setPosition({ x: Math.floor(BOARD_WIDTH / 2) - 1, y: 0 });
-                setScore(0);
-                setLines(0);
-                setLevel(1);
-                setGameOver(false);
-                setIsPaused(false);
-                setShowLeaderboard(false);
-            };
-
-            useEffect(() => {
-                if (!currentPiece && !gameOver) startGame();
-                loadTotalScores();
-            }, []);
-
-            useEffect(() => {
-                if (gameOver || isPaused) return;
-                const speed = Math.max(200, 1000 - (level - 1) * 100);
-                const timer = setInterval(moveDown, speed);
-                return () => clearInterval(timer);
-            }, [moveDown, gameOver, isPaused, level]);
-
-            useEffect(() => {
-                const handleKeyPress = (e) => {
-                    if (gameOver) return;
-                    switch(e.key) {
-                        case 'ArrowLeft': moveHorizontal(-1); break;
-                        case 'ArrowRight': moveHorizontal(1); break;
-                        case 'ArrowDown': moveDown(); break;
-                        case 'ArrowUp': rotatePiece(); break;
-                        case ' ': e.preventDefault(); hardDrop(); break;
-                        case 'p': case 'P': setIsPaused(prev => !prev); break;
-                    }
-                };
-                window.addEventListener('keydown', handleKeyPress);
-                return () => window.removeEventListener('keydown', handleKeyPress);
-            }, [moveHorizontal, moveDown, rotatePiece, hardDrop, gameOver]);
-
-            const renderBoard = () => {
-                const displayBoard = board.map(row => [...row]);
-                if (currentPiece) {
-                    currentPiece.shape.forEach((row, y) => {
-                        row.forEach((value, x) => {
-                            if (value) {
-                                const boardY = position.y + y;
-                                const boardX = position.x + x;
-                                if (boardY >= 0 && boardY < BOARD_HEIGHT && boardX >= 0 && boardX < BOARD_WIDTH) {
-                                    displayBoard[boardY][boardX] = currentPiece.color;
-                                }
-                            }
-                        });
-                    });
-                }
-                return displayBoard;
-            };
-
-            const displayBoard = renderBoard();
-
-            return (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', background: 'linear-gradient(135deg, #1a1a2e, #0f3460, #16213e)', padding: isMobile ? '10px' : '20px' }}>
-                    <div style={{ background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(15px)', borderRadius: isMobile ? '16px' : '24px', padding: isMobile ? '15px' : '30px', boxShadow: '0 25px 70px rgba(0,0,0,0.6)', border: '1px solid rgba(255,255,255,0.1)', maxWidth: '1200px', width: '100%' }}>
-                        <h1 style={{ fontSize: isMobile ? '32px' : '48px', fontWeight: 'bold', color: 'white', marginBottom: '5px', textAlign: 'center', textShadow: '3px 3px 6px rgba(0,0,0,0.5)' }}>
-                            🎮 Block Drop
-                        </h1>
-                        <p style={{ textAlign: 'center', color: 'rgba(255,255,255,0.7)', marginBottom: '5px', fontSize: isMobile ? '11px' : '14px' }}>
-                            Web3 Puzzle on Base • {totalScores} Scores
-                        </p>
-                        <p style={{ textAlign: 'center', color: 'rgba(255,255,255,0.5)', marginBottom: '15px', fontSize: isMobile ? '9px' : '11px', fontFamily: 'monospace' }}>
-                            0xa6A7...aBaf
-                        </p>
-                        
-                        <button onClick={handleConnectWallet} style={{ width: '100%', padding: isMobile ? '12px' : '14px', marginBottom: '20px', background: walletAddress ? 'linear-gradient(135deg, #10b981, #059669)' : 'linear-gradient(135deg, #3b82f6, #2563eb)', color: 'white', border: 'none', borderRadius: '12px', cursor: 'pointer', fontWeight: 'bold', fontSize: isMobile ? '13px' : '15px', boxShadow: '0 6px 20px rgba(59, 130, 246, 0.4)' }}>
-                            {walletAddress ? `🔗 ${walletAddress.slice(0,6)}...${walletAddress.slice(-4)}` : '🔗 Connect Wallet'}
-                        </button>
-
-                        <div style={{ display: 'flex', gap: isMobile ? '15px' : '25px', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'flex-start' }}>
-                            <div 
-                                className="game-board"
-                                onTouchStart={handleTouchStart}
-                                onTouchEnd={handleTouchEnd}
-                                style={{ background: 'rgba(0,0,0,0.6)', padding: isMobile ? '10px' : '20px', borderRadius: '16px', border: '4px solid rgba(102, 126, 234, 0.3)', boxShadow: '0 15px 50px rgba(0,0,0,0.6)', touchAction: 'none' }}>
-                                <div style={{ display: 'grid', gridTemplateColumns: `repeat(${BOARD_WIDTH}, ${BLOCK_SIZE}px)`, gap: '1px', background: '#0a0a0a', padding: '1px' }}>
-                                    {displayBoard.map((row, y) => row.map((cell, x) => (
-                                        <div key={`${y}-${x}`} style={{ width: BLOCK_SIZE, height: BLOCK_SIZE, backgroundColor: cell || '#1a1a2e', boxShadow: cell ? 'inset 0 0 10px rgba(255,255,255,0.4), 0 2px 5px rgba(0,0,0,0.3)' : 'inset 0 0 5px rgba(0,0,0,0.5)', borderRadius: '2px' }} />
-                                    )))}
-                                </div>
-                                {isMobile && <p style={{ textAlign: 'center', color: 'rgba(255,255,255,0.6)', fontSize: '11px', marginTop: '10px' }}>Swipe: ← → Move • ↑ Rotate • ↓ Drop</p>}
-                            </div>
-                            
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', minWidth: isMobile ? '100%' : '220px', width: isMobile ? '100%' : 'auto' }}>
-                                <div style={{ background: 'linear-gradient(135deg, #667eea, #764ba2)', padding: isMobile ? '15px' : '20px', borderRadius: '16px', color: 'white', boxShadow: '0 10px 30px rgba(102, 126, 234, 0.5)' }}>
-                                    <div style={{ fontSize: '13px', opacity: 0.9, textTransform: 'uppercase' }}>Score</div>
-                                    <div style={{ fontSize: isMobile ? '28px' : '36px', fontWeight: 'bold' }}>{score.toLocaleString()}</div>
-                                </div>
-                                
-                                <div style={{ display: 'flex', gap: '12px' }}>
-                                    <div style={{ flex: 1, background: 'linear-gradient(135deg, #f093fb, #f5576c)', padding: '12px', borderRadius: '16px', color: 'white' }}>
-                                        <div style={{ fontSize: '11px', opacity: 0.9 }}>Lines</div>
-                                        <div style={{ fontSize: '24px', fontWeight: 'bold' }}>{lines}</div>
-                                    </div>
-                                    <div style={{ flex: 1, background: 'linear-gradient(135deg, #4facfe, #00f2fe)', padding: '12px', borderRadius: '16px', color: 'white' }}>
-                                        <div style={{ fontSize: '11px', opacity: 0.9 }}>Level</div>
-                                        <div style={{ fontSize: '24px', fontWeight: 'bold' }}>{level}</div>
-                                    </div>
-                                </div>
-                                
-                                {!isMobile && (
-                                    <div style={{ background: 'rgba(255,255,255,0.08)', padding: '15px', borderRadius: '16px', color: 'white', fontSize: '12px', border: '1px solid rgba(255,255,255,0.1)' }}>
-                                        <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>⌨️ Controls</div>
-                                        <div>← → Move • ↑ Rotate</div>
-                                        <div>↓ Drop • Space Hard Drop</div>
-                                        <div>P Pause</div>
-                                    </div>
-                                )}
-                                
-                                <button onClick={() => setIsPaused(!isPaused)} disabled={gameOver} style={{ background: gameOver ? '#4b5563' : 'linear-gradient(135deg, #fbbf24, #f59e0b)', color: gameOver ? '#9ca3af' : '#000', fontWeight: 'bold', padding: '14px', borderRadius: '14px', border: 'none', cursor: gameOver ? 'not-allowed' : 'pointer', fontSize: '15px', opacity: gameOver ? 0.5 : 1 }}>
-                                    {isPaused ? '▶️ Resume' : '⏸️ Pause'}
-                                </button>
-                                
-                                <button onClick={startGame} style={{ background: 'linear-gradient(135deg, #10b981, #059669)', color: 'white', fontWeight: 'bold', padding: '14px', borderRadius: '14px', border: 'none', cursor: 'pointer', fontSize: '15px', boxShadow: '0 8px 25px rgba(16, 185, 129, 0.5)' }}>
-                                    🔄 New Game
-                                </button>
-
-                                {walletAddress && (
-                                    <>
-                                        <button onClick={handleSubmitScore} disabled={submittingScore || score === 0} style={{ background: 'linear-gradient(135deg, #8b5cf6, #6366f1)', color: 'white', fontWeight: 'bold', padding: '14px', borderRadius: '14px', border: 'none', cursor: submittingScore || score === 0 ? 'not-allowed' : 'pointer', fontSize: '15px', opacity: submittingScore || score === 0 ? 0.5 : 1, boxShadow: submittingScore || score === 0 ? 'none' : '0 8px 25px rgba(139, 92, 246, 0.5)' }}>
-                                            {submittingScore ? '⏳ Submitting...' : '📤 Submit Score'}
-                                        </button>
-                                        
-                                        <button onClick={loadLeaderboard} style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)', color: 'white', fontWeight: 'bold', padding: '14px', borderRadius: '14px', border: 'none', cursor: 'pointer', fontSize: '15px', boxShadow: '0 8px 25px rgba(245, 158, 11, 0.5)' }}>
-                                            🏆 Leaderboard
-                                        </button>
-                                    </>
-                                )}
-                            </div>
-                        </div>
-                        
-                        {isMobile && (
-                            <div style={{ marginTop: '20px', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px' }}>
-                                <button onClick={() => moveHorizontal(-1)} style={{ background: 'linear-gradient(135deg, #3b82f6, #2563eb)', color: 'white', fontWeight: 'bold', padding: '18px', borderRadius: '12px', border: 'none', fontSize: '24px', boxShadow: '0 6px 20px rgba(59, 130, 246, 0.5)' }}>←</button>
-                                <button onClick={rotatePiece} style={{ background: 'linear-gradient(135deg, #10b981, #059669)', color: 'white', fontWeight: 'bold', padding: '18px', borderRadius: '12px', border: 'none', fontSize: '24px', boxShadow: '0 6px 20px rgba(16, 185, 129, 0.5)' }}>↻</button>
-                                <button onClick={hardDrop} style={{ background: 'linear-gradient(135deg, #ef4444, #dc2626)', color: 'white', fontWeight: 'bold', padding: '18px', borderRadius: '12px', border: 'none', fontSize: '24px', boxShadow: '0 6px 20px rgba(239, 68, 68, 0.5)' }}>↓↓</button>
-                                <button onClick={() => moveHorizontal(1)} style={{ background: 'linear-gradient(135deg, #3b82f6, #2563eb)', color: 'white', fontWeight: 'bold', padding: '18px', borderRadius: '12px', border: 'none', fontSize: '24px', boxShadow: '0 6px 20px rgba(59, 130, 246, 0.5)' }}>→</button>
-                            </div>
-                        )}
-                        
-                        {gameOver && !showLeaderboard && (
-                            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.95)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(10px)', padding: '20px' }}>
-                                <div style={{ background: 'linear-gradient(135deg, #667eea, #764ba2)', padding: isMobile ? '40px 30px' : '60px 70px', borderRadius: '30px', color: 'white', textAlign: 'center', boxShadow: '0 30px 80px rgba(0,0,0,0.7)', maxWidth: '500px', width: '100%' }}>
-                                    <h2 style={{ fontSize: isMobile ? '42px' : '54px', fontWeight: 'bold', marginBottom: '25px', textShadow: '3px 3px 6px rgba(0,0,0,0.4)' }}>Game Over! 🎮</h2>
-                                    <div style={{ background: 'rgba(255,255,255,0.15)', padding: '20px', borderRadius: '20px', marginBottom: '30px', backdropFilter: 'blur(10px)' }}>
-                                        <p style={{ fontSize: isMobile ? '28px' : '32px', marginBottom: '12px', fontWeight: 'bold' }}>{score.toLocaleString()} points</p>
-                                        <p style={{ fontSize: '18px', marginBottom: '6px', opacity: 0.95 }}>Lines: <strong>{lines}</strong></p>
-                                        <p style={{ fontSize: '18px', opacity: 0.95 }}>Level: <strong>{level}</strong></p>
-                                    </div>
-                                    {walletAddress && score > 0 && (
-                                        <button onClick={handleSubmitScore} disabled={submittingScore} style={{ background: 'rgba(255,255,255,0.2)', color: 'white', fontWeight: 'bold', padding: '14px 30px', borderRadius: '14px', border: '2px solid white', cursor: submittingScore ? 'not-allowed' : 'pointer', fontSize: '16px', marginBottom: '12px', width: '100%', opacity: submittingScore ? 0.5 : 1 }}>
-                                            {submittingScore ? '⏳ Submitting...' : '📤 Submit Score'}
-                                        </button>
-                                    )}
-                                    <button onClick={startGame} style={{ background: 'white', color: '#667eea', fontWeight: 'bold', padding: '16px 50px', borderRadius: '16px', border: 'none', cursor: 'pointer', fontSize: '18px', boxShadow: '0 8px 30px rgba(255,255,255,0.4)', width: '100%' }}>
-                                        Play Again 🎯
-                                    </button>
-                                </div>
-                            </div>
-                        )}
-
-                        {showLeaderboard && (
-                            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.95)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(10px)', padding: '20px', overflowY: 'auto' }}>
-                                <div style={{ background: 'linear-gradient(135deg, #1a1a2e, #0f3460)', padding: isMobile ? '25px' : '40px', borderRadius: '30px', color: 'white', maxWidth: '700px', width: '100%', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 30px 80px rgba(0,0,0,0.8)', border: '2px solid rgba(102, 126, 234, 0.3)' }}>
-                                    <h2 style={{ fontSize: isMobile ? '32px' : '42px', fontWeight: 'bold', marginBottom: '25px', textAlign: 'center', textShadow: '2px 2px 4px rgba(0,0,0,0.5)' }}>🏆 Global Leaderboard</h2>
-                                    
-                                    {leaderboard.length === 0 ? (
-                                        <p style={{ textAlign: 'center', fontSize: '16px', opacity: 0.8, padding: '40px 20px' }}>No scores yet. Be the first! 🎯</p>
-                                    ) : (
-                                        <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '20px', padding: isMobile ? '15px' : '20px', marginBottom: '25px' }}>
-                                            {leaderboard.map((entry, index) => (
-                                                <div key={index} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: isMobile ? '12px 15px' : '15px 20px', background: index < 3 ? 'rgba(255, 215, 0, 0.1)' : 'rgba(255,255,255,0.03)', borderRadius: '12px', marginBottom: '8px', border: index < 3 ? '2px solid rgba(255, 215, 0, 0.3)' : '1px solid rgba(255,255,255,0.05)', flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: isMobile ? '100%' : 'auto', marginBottom: isMobile ? '8px' : '0' }}>
-                                                        <span style={{ fontSize: isMobile ? '20px' : '24px', minWidth: '30px', textAlign: 'center' }}>
-                                                            {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}`}
-                                                        </span>
-                                                        <div>
-                                                            <div style={{ fontWeight: 'bold', fontSize: isMobile ? '14px' : '16px' }}>
-                                                                {entry.username || `${entry.player.slice(0, 6)}...${entry.player.slice(-4)}`}
-                                                            </div>
-                                                            <div style={{ fontSize: isMobile ? '11px' : '12px', opacity: 0.7 }}>
-                                                                {entry.player.slice(0, 8)}...
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                    <div style={{ textAlign: 'right', display: 'flex', gap: isMobile ? '15px' : '20px', justifyContent: isMobile ? 'space-between' : 'flex-end', width: isMobile ? '100%' : 'auto' }}>
-                                                        <div>
-                                                            <div style={{ fontSize: isMobile ? '18px' : '20px', fontWeight: 'bold', color: '#4ECDC4' }}>
-                                                                {entry.score.toLocaleString()}
-                                                            </div>
-                                                            <div style={{ fontSize: isMobile ? '10px' : '11px', opacity: 0.7 }}>points</div>
-                                                        </div>
-                                                        <div>
-                                                            <div style={{ fontSize: isMobile ? '14px' : '16px', fontWeight: 'bold' }}>L{entry.level}</div>
-                                                            <div style={{ fontSize: isMobile ? '10px' : '11px', opacity: 0.7 }}>{entry.lines} lines</div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-                                    
-                                    <button onClick={() => setShowLeaderboard(false)} style={{ background: 'linear-gradient(135deg, #667eea, #764ba2)', color: 'white', fontWeight: 'bold', padding: '16px', borderRadius: '16px', border: 'none', cursor: 'pointer', fontSize: '16px', width: '100%', boxShadow: '0 8px 25px rgba(102, 126, 234, 0.5)' }}>
-                                        ← Back to Game
-                                    </button>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            );
-        }
-
-        // Wait for DOM to be ready
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', () => {
-                ReactDOM.render(<BlockDropGame />, document.getElementById('root'));
             });
-        } else {
-            ReactDOM.render(<BlockDropGame />, document.getElementById('root'));
         }
+
+        // Clear Lines
+        function clearLines() {
+            let cleared = 0;
+            for (let y = BOARD_HEIGHT - 1; y >= 0; y--) {
+                if (board[y].every(cell => cell !== 0)) {
+                    board.splice(y, 1);
+                    board.unshift(Array(BOARD_WIDTH).fill(0));
+                    cleared++;
+                    y++;
+                }
+            }
+            if (cleared > 0) {
+                lines += cleared;
+                score += cleared * 100 * level;
+                level = Math.floor(lines / 10) + 1;
+            }
+        }
+
+        // Move Down
+        function moveDown() {
+            if (isPaused || gameOver) return;
+            
+            const newPos = {x: position.x, y: position.y + 1};
+            if (!checkCollision(currentPiece, newPos)) {
+                position = newPos;
+            } else {
+                mergePiece();
+                clearLines();
+                currentPiece = createPiece();
+                position = {x: Math.floor(BOARD_WIDTH / 2) - 1, y: 0};
+                
+                if (checkCollision(currentPiece, position)) {
+                    gameOver = true;
+                    clearInterval(gameInterval);
+                    alert(`Game Over! Final Score: ${score}`);
+                }
+            }
+            render();
+        }
+
+        // Move Horizontal
+        function move(dir) {
+            if (isPaused || gameOver) return;
+            const newPos = {x: position.x + dir, y: position.y};
+            if (!checkCollision(currentPiece, newPos)) {
+                position = newPos;
+                render();
+            }
+        }
+
+        // Rotate
+        function rotate() {
+            if (isPaused || gameOver) return;
+            const rotated = currentPiece.shape[0].map((_, i) => 
+                currentPiece.shape.map(row => row[i]).reverse()
+            );
+            const rotatedPiece = {...currentPiece, shape: rotated};
+            if (!checkCollision(rotatedPiece, position)) {
+                currentPiece = rotatedPiece;
+                render();
+            }
+        }
+
+        // Hard Drop
+        function hardDrop() {
+            if (isPaused || gameOver) return;
+            while (!checkCollision(currentPiece, {x: position.x, y: position.y + 1})) {
+                position.y++;
+            }
+            render();
+            setTimeout(moveDown, 50);
+        }
+
+        // Toggle Pause
+        function togglePause() {
+            isPaused = !isPaused;
+            document.querySelector('.pause-btn').textContent = isPaused ? '▶️ Resume' : '⏸️ Pause';
+        }
+
+        // Start New Game
+        function startNewGame() {
+            board = Array(BOARD_HEIGHT).fill().map(() => Array(BOARD_WIDTH).fill(0));
+            currentPiece = createPiece();
+            position = {x: Math.floor(BOARD_WIDTH / 2) - 1, y: 0};
+            score = 0;
+            lines = 0;
+            level = 1;
+            gameOver = false;
+            isPaused = false;
+            
+            if (gameInterval) clearInterval(gameInterval);
+            gameInterval = setInterval(moveDown, 1000);
+            render();
+        }
+
+        // Keyboard Controls
+        document.addEventListener('keydown', (e) => {
+            if (gameOver) return;
+            switch(e.key) {
+                case 'ArrowLeft': move(-1); break;
+                case 'ArrowRight': move(1); break;
+                case 'ArrowDown': moveDown(); break;
+                case 'ArrowUp': rotate(); break;
+                case ' ': e.preventDefault(); hardDrop(); break;
+                case 'p': case 'P': togglePause(); break;
+            }
+        });
+
+        // Web3 Functions
+        async function connectWallet() {
+            try {
+                if (typeof window.ethereum === 'undefined') {
+                    alert('Please install MetaMask!');
+                    window.open('https://metamask.io/download/', '_blank');
+                    return;
+                }
+
+                await window.ethereum.request({ method: 'eth_requestAccounts' });
+                const provider = new ethers.providers.Web3Provider(window.ethereum);
+                const signer = provider.getSigner();
+                walletAddress = await signer.getAddress();
+                
+                // Check/Switch to Base
+                const network = await provider.getNetwork();
+                if (network.chainId !== 8453) {
+                    try {
+                        await window.ethereum.request({
+                            method: 'wallet_switchEthereumChain',
+                            params: [{ chainId: '0x2105' }],
+                        });
+                    } catch (switchError) {
+                        if (switchError.code === 4902) {
+                            await window.ethereum.request({
+                                method: 'wallet_addEthereumChain',
+                                params: [{
+                                    chainId: '0x2105',
+                                    chainName: 'Base',
+                                    nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 },
+                                    rpcUrls: ['https://mainnet.base.org'],
+                                    blockExplorerUrls: ['https://basescan.org']
+                                }]
+                            });
+                        }
+                    }
+                }
+                
+                document.getElementById('connectBtn').textContent = `🔗 ${walletAddress.slice(0,6)}...${walletAddress.slice(-4)}`;
+                document.getElementById('connectBtn').classList.add('connected');
+                document.getElementById('web3controls').style.display = 'flex';
+                alert('✅ Wallet Connected!');
+            } catch (error) {
+                console.error('Connection error:', error);
+                alert('❌ Connection failed: ' + error.message);
+            }
+        }
+
+        async function submitScore() {
+            if (!walletAddress) {
+                alert('Connect wallet first!');
+                return;
+            }
+            if (score === 0) {
+                alert('Play the game first!');
+                return;
+            }
+
+            const username = prompt('Enter your username (max 20 chars):');
+            if (!username) return;
+
+            try {
+                const provider = new ethers.providers.Web3Provider(window.ethereum);
+                const signer = provider.getSigner();
+                const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
+                
+                const tx = await contract.submitScore(score, level, lines, username);
+                alert('⏳ Transaction sent! Waiting for confirmation...');
+                
+                await tx.wait();
+                alert(`🎉 Score submitted!\n\nScore: ${score}\nTx: ${tx.hash.slice(0,10)}...`);
+            } catch (error) {
+                console.error('Submit error:', error);
+                alert('❌ Failed: ' + (error.reason || error.message));
+            }
+        }
+
+        async function showLeaderboard() {
+            try {
+                const provider = new ethers.providers.JsonRpcProvider('https://mainnet.base.org');
+                const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, provider);
+                const scores = await contract.getTopScores(10);
+                
+                let msg = '🏆 TOP 10 LEADERBOARD 🏆\n\n';
+                scores.forEach((s, i) => {
+                    msg += `${i+1}. ${s.username || s.player.slice(0,8)}\n`;
+                    msg += `   Score: ${s.score.toNumber().toLocaleString()} | Level: ${s.level.toNumber()}\n\n`;
+                });
+                
+                alert(msg);
+            } catch (error) {
+                console.error('Leaderboard error:', error);
+                alert('❌ Failed to load leaderboard');
+            }
+        }
+
+        // Start Game on Load
+        window.onload = () => {
+            initBoard();
+            startNewGame();
+        };
     </script>
 </body>
 </html>
