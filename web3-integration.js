@@ -1,5 +1,5 @@
 // Replace this with YOUR actual contract address from Remix
-const CONTRACT_ADDRESS = '0xYOUR_CONTRACT_ADDRESS_HERE';
+const CONTRACT_ADDRESS = '0x0xa6A74BDCD285Fc5b6634666D511333f47Ea7aBaf';
 
 const CONTRACT_ABI = [
   "function submitScore(uint256 _score, uint256 _level, uint256 _lines, string memory _username) external",
