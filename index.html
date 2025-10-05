@@ -4,11 +4,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Block Drop Game</title>
-  
-  <!-- ✅ Ethers.js Library -->
+
+  <!-- ✅ Load ethers.js FIRST -->
   <script src="https://cdn.ethers.io/lib/ethers-5.2.umd.min.js"></script>
-  
-  <!-- ✅ Web3 Integration -->
+
+  <!-- ✅ Then load the Web3 integration -->
   <script src="web3-integration.js"></script>
 
   <style>
@@ -28,6 +28,7 @@
       border-radius: 20px;
       color: white;
       max-width: 800px;
+      width: 100%;
     }
     h1 { text-align: center; margin-bottom: 20px; }
     button {
@@ -68,23 +69,14 @@
 <body>
   <div id="game">
     <h1>🎮 Block Drop</h1>
-    <p style="text-align: center; opacity: 0.7; margin-bottom: 20px; font-size: 12px;">Contract: 0xa6A7...aBaf</p>
+    <p style="text-align:center;opacity:0.7;margin-bottom:20px;font-size:12px;">Contract: 0xa6A7...aBaf</p>
 
     <button id="connectBtn" class="connect-btn" onclick="connectWalletHandler()">🔗 Connect Wallet</button>
 
     <div class="info">
-      <div class="info-box">
-        <div class="label">Score</div>
-        <div class="value" id="score">0</div>
-      </div>
-      <div class="info-box">
-        <div class="label">Lines</div>
-        <div class="value" id="lines">0</div>
-      </div>
-      <div class="info-box">
-        <div class="label">Level</div>
-        <div class="value" id="level">1</div>
-      </div>
+      <div class="info-box"><div class="label">Score</div><div class="value" id="score">0</div></div>
+      <div class="info-box"><div class="label">Lines</div><div class="value" id="lines">0</div></div>
+      <div class="info-box"><div class="label">Level</div><div class="value" id="level">1</div></div>
     </div>
 
     <div class="game-controls">
@@ -92,14 +84,12 @@
       <button class="new-btn" onclick="startNewGame()">🔄 New Game</button>
     </div>
 
-    <div class="game-controls" id="web3controls" style="display: none;">
+    <div class="game-controls" id="web3controls" style="display:none;">
       <button class="submit-btn" onclick="submitScoreHandler()">📤 Submit Score</button>
       <button class="leaderboard-btn" onclick="showLeaderboardHandler()">🏆 Leaderboard</button>
     </div>
 
-    <div style="text-align: center;">
-      <div id="board"></div>
-    </div>
+    <div style="text-align:center;"><div id="board"></div></div>
 
     <div class="controls">
       <button onclick="move(-1)">←</button>
@@ -108,145 +98,54 @@
       <button onclick="move(1)">→</button>
     </div>
 
-    <p style="text-align: center; margin-top: 20px; opacity: 0.7; font-size: 13px;">
+    <p style="text-align:center;margin-top:20px;opacity:0.7;font-size:13px;">
       Arrow Keys: Move & Rotate | Space: Hard Drop | P: Pause
     </p>
   </div>
 
   <script>
-    /*************** GAME LOGIC (same as your original) ***************/
-    const BOARD_WIDTH = 10, BOARD_HEIGHT = 20;
-    const SHAPES = [[[1,1,1,1]], [[1,1],[1,1]], [[1,1,1],[0,1,0]], [[1,1,1],[1,0,0]], [[1,1,1],[0,0,1]], [[1,1,0],[0,1,1]], [[0,1,1],[1,1,0]]];
-    const COLORS = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8', '#F7DC6F', '#BB8FCE'];
-    let board, currentPiece, position, score = 0, lines = 0, level = 1, gameOver = false, isPaused = false, gameInterval = null;
+    /* -------- Simplified Block Drop game logic (same core gameplay) -------- */
+    const W = 10, H = 20;
+    const SHAPES = [[[1,1,1,1]],[[1,1],[1,1]],[[1,1,1],[0,1,0]],[[1,1,1],[1,0,0]],[[1,1,1],[0,0,1]],[[1,1,0],[0,1,1]],[[0,1,1],[1,1,0]]];
+    const COLORS = ['#FF6B6B','#4ECDC4','#45B7D1','#FFA07A','#98D8C8','#F7DC6F','#BB8FCE'];
+    let board, piece, pos, score=0, lines=0, level=1, paused=false, over=false, timer;
 
-    function initBoard() {
-      const boardEl = document.getElementById('board');
-      boardEl.innerHTML = '';
-      for (let y = 0; y < BOARD_HEIGHT; y++) {
-        for (let x = 0; x < BOARD_WIDTH; x++) {
-          const cell = document.createElement('div');
-          cell.className = 'cell';
-          cell.id = `cell-${y}-${x}`;
-          boardEl.appendChild(cell);
-        }
-      }
-    }
+    function initBoard(){const b=document.getElementById('board');b.innerHTML='';for(let y=0;y<H;y++){for(let x=0;x<W;x++){const c=document.createElement('div');c.className='cell';c.id=`c-${y}-${x}`;b.appendChild(c);}}}
+    function render(){for(let y=0;y<H;y++){for(let x=0;x<W;x++){const c=document.getElementById(`c-${y}-${x}`);c.style.backgroundColor=board[y][x]||'#1a1a2e';}}piece.shape.forEach((r,yy)=>r.forEach((v,xx)=>{if(v){const X=pos.x+xx,Y=pos.y+yy;if(Y>=0&&Y<H&&X>=0&&X<W)document.getElementById(`c-${Y}-${X}`).style.backgroundColor=piece.color;}}));document.getElementById('score').textContent=score;document.getElementById('lines').textContent=lines;document.getElementById('level').textContent=level;}
+    function createPiece(){const i=Math.floor(Math.random()*SHAPES.length);return{shape:SHAPES[i],color:COLORS[i]};}
+    function collide(p,po){for(let y=0;y<p.shape.length;y++){for(let x=0;x<p.shape[y].length;x++){if(p.shape[y][x]){const X=po.x+x,Y=po.y+y;if(X<0||X>=W||Y>=H||(Y>=0&&board[Y][X]))return true;}}}return false;}
+    function merge(){piece.shape.forEach((r,y)=>r.forEach((v,x)=>{if(v&&pos.y+y>=0)board[pos.y+y][pos.x+x]=piece.color;}));}
+    function clearLines(){let c=0;for(let y=H-1;y>=0;y--){if(board[y].every(v=>v)){board.splice(y,1);board.unshift(Array(W).fill(0));c++;y++;}}if(c){lines+=c;score+=c*100*level;level=Math.floor(lines/10)+1;}}
+    function down(){if(paused||over)return;const np={x:pos.x,y:pos.y+1};if(!collide(piece,np))pos=np;else{merge();clearLines();piece=createPiece();pos={x:4,y:0};if(collide(piece,pos)){over=true;clearInterval(timer);alert(`Game Over! Score: ${score}`);}}render();}
+    function move(d){if(!paused&&!over&&!collide(piece,{x:pos.x+d,y:pos.y}))pos.x+=d;render();}
+    function rotate(){if(paused||over)return;const r=piece.shape[0].map((_,i)=>piece.shape.map(r=>r[i]).reverse());const rp={...piece,shape:r};if(!collide(rp,pos))piece=rp;render();}
+    function hardDrop(){while(!collide(piece,{x:pos.x,y:pos.y+1}))pos.y++;render();setTimeout(down,50);}
+    function togglePause(){paused=!paused;document.querySelector('.pause-btn').textContent=paused?'▶️ Resume':'⏸️ Pause';}
+    function startNewGame(){board=Array(H).fill().map(()=>Array(W).fill(0));piece=createPiece();pos={x:4,y:0};score=lines=0;level=1;over=false;paused=false;clearInterval(timer);timer=setInterval(down,1000);render();}
+    document.addEventListener('keydown',e=>{if(over)return;if(e.key==='ArrowLeft')move(-1);else if(e.key==='ArrowRight')move(1);else if(e.key==='ArrowDown')down();else if(e.key==='ArrowUp')rotate();else if(e.key===' ')hardDrop();else if(e.key.toLowerCase()==='p')togglePause();});
+    window.onload=()=>{initBoard();startNewGame();};
 
-    function render() {
-      for (let y = 0; y < BOARD_HEIGHT; y++) {
-        for (let x = 0; x < BOARD_WIDTH; x++) {
-          const cell = document.getElementById(`cell-${y}-${x}`);
-          cell.style.backgroundColor = board[y][x] || '#1a1a2e';
-        }
-      }
-      if (currentPiece) {
-        currentPiece.shape.forEach((row, y) => {
-          row.forEach((val, x) => {
-            if (val) {
-              const bx = position.x + x, by = position.y + y;
-              if (by >= 0 && by < BOARD_HEIGHT && bx >= 0 && bx < BOARD_WIDTH)
-                document.getElementById(`cell-${by}-${bx}`).style.backgroundColor = currentPiece.color;
-            }
-          });
-        });
-      }
-      document.getElementById('score').textContent = score.toLocaleString();
-      document.getElementById('lines').textContent = lines;
-      document.getElementById('level').textContent = level;
-    }
-
-    function createPiece() { const i = Math.floor(Math.random() * SHAPES.length); return { shape: SHAPES[i], color: COLORS[i] }; }
-
-    function checkCollision(p, pos) {
-      for (let y = 0; y < p.shape.length; y++)
-        for (let x = 0; x < p.shape[y].length; x++)
-          if (p.shape[y][x]) {
-            const nx = pos.x + x, ny = pos.y + y;
-            if (nx < 0 || nx >= BOARD_WIDTH || ny >= BOARD_HEIGHT || (ny >= 0 && board[ny][nx])) return true;
-          }
-      return false;
-    }
-
-    function mergePiece() {
-      currentPiece.shape.forEach((row, y) => row.forEach((v, x) => { if (v && position.y + y >= 0) board[position.y + y][position.x + x] = currentPiece.color; }));
-    }
-
-    function clearLines() {
-      let cleared = 0;
-      for (let y = BOARD_HEIGHT - 1; y >= 0; y--) {
-        if (board[y].every(c => c !== 0)) {
-          board.splice(y, 1);
-          board.unshift(Array(BOARD_WIDTH).fill(0));
-          cleared++; y++;
-        }
-      }
-      if (cleared) { lines += cleared; score += cleared * 100 * level; level = Math.floor(lines / 10) + 1; }
-    }
-
-    function moveDown() {
-      if (isPaused || gameOver) return;
-      const np = {x: position.x, y: position.y + 1};
-      if (!checkCollision(currentPiece, np)) position = np;
-      else {
-        mergePiece(); clearLines();
-        currentPiece = createPiece(); position = {x: 4, y: 0};
-        if (checkCollision(currentPiece, position)) { gameOver = true; clearInterval(gameInterval); alert(`Game Over! Final Score: ${score}`); }
-      }
-      render();
-    }
-
-    function move(d) { if (!isPaused && !gameOver && !checkCollision(currentPiece, {x: position.x + d, y: position.y})) { position.x += d; render(); } }
-    function rotate() {
-      if (isPaused || gameOver) return;
-      const r = currentPiece.shape[0].map((_, i) => currentPiece.shape.map(r => r[i]).reverse());
-      const rp = {...currentPiece, shape: r};
-      if (!checkCollision(rp, position)) currentPiece = rp;
-      render();
-    }
-    function hardDrop() { while (!checkCollision(currentPiece, {x: position.x, y: position.y + 1})) position.y++; render(); setTimeout(moveDown, 50); }
-    function togglePause() { isPaused = !isPaused; document.querySelector('.pause-btn').textContent = isPaused ? '▶️ Resume' : '⏸️ Pause'; }
-    function startNewGame() { board = Array(BOARD_HEIGHT).fill().map(() => Array(BOARD_WIDTH).fill(0)); currentPiece = createPiece(); position = {x:4,y:0}; score=0;lines=0;level=1;gameOver=false;isPaused=false; if(gameInterval) clearInterval(gameInterval); gameInterval=setInterval(moveDown,1000); render(); }
-
-    document.addEventListener('keydown', e => {
-      if (gameOver) return;
-      if (e.key === 'ArrowLeft') move(-1);
-      else if (e.key === 'ArrowRight') move(1);
-      else if (e.key === 'ArrowDown') moveDown();
-      else if (e.key === 'ArrowUp') rotate();
-      else if (e.key === ' ') { e.preventDefault(); hardDrop(); }
-      else if (e.key.toLowerCase() === 'p') togglePause();
-    });
-
-    window.onload = () => { initBoard(); startNewGame(); };
-
-    /*************** WEB3 HANDLERS ***************/
-    async function connectWalletHandler() {
-      try {
+    /* ---------------- WEB3 HANDLERS ---------------- */
+    async function connectWalletHandler(){
+      try{
         const { address } = await connectWallet();
-        document.getElementById('connectBtn').textContent = `🔗 ${address.slice(0,6)}...${address.slice(-4)}`;
-        document.getElementById('connectBtn').classList.add('connected');
-        document.getElementById('web3controls').style.display = 'flex';
+        const btn=document.getElementById('connectBtn');
+        btn.textContent=`🔗 ${address.slice(0,6)}...${address.slice(-4)}`;
+        btn.classList.add('connected');
+        document.getElementById('web3controls').style.display='flex';
         alert('✅ Wallet Connected!');
-      } catch (err) {
-        alert('❌ ' + err.message);
-      }
+      }catch(err){alert('❌ '+err.message);}
     }
-
-    async function submitScoreHandler() {
-      if (score <= 0) return alert('Play before submitting!');
-      const username = prompt('Enter your username (max 20 chars):');
-      if (!username) return;
-      const result = await submitScoreToBlockchain(score, level, lines, username);
-      alert(result.success ? `🎉 Score submitted!\nTx: ${result.transactionHash}` : '❌ ' + result.error);
+    async function submitScoreHandler(){
+      if(score<=0)return alert('Play before submitting!');
+      const username=prompt('Enter username (max20):');if(!username)return;
+      const res=await submitScoreToBlockchain(score,level,lines,username);
+      alert(res.success?`🎉 Score submitted!\nTx: ${res.transactionHash}`:'❌ '+res.error);
     }
-
-    async function showLeaderboardHandler() {
-      const leaderboard = await getLeaderboard();
-      let msg = '🏆 TOP 10 LEADERBOARD 🏆\n\n';
-      leaderboard.forEach((s, i) => {
-        msg += `${i+1}. ${s.username || s.player.slice(0,8)}\n   Score: ${s.score.toLocaleString()} | Level: ${s.level}\n\n`;
-      });
+    async function showLeaderboardHandler(){
+      const lb=await getLeaderboard();
+      let msg='🏆 TOP 10 LEADERBOARD 🏆\n\n';
+      lb.forEach((s,i)=>{msg+=`${i+1}. ${s.username||s.player.slice(0,8)}\n   Score:${s.score} | Lv:${s.level}\n\n`;});
       alert(msg);
     }
   </script>
