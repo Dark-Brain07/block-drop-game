@@ -1,78 +1,497 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Block Drop Game</title>
-
-  <!-- ✅ Load ethers.js first -->
-  <script src="https://cdn.ethers.io/lib/ethers-5.7.umd.min.js"></script>
-
-  <style>
-    body {
-      background: #121212;
-      color: #fff;
-      font-family: Arial, sans-serif;
-      text-align: center;
-      margin: 0;
-      padding: 0;
-    }
-
-    h1 {
-      margin-top: 40px;
-    }
-
-    #connectBtn {
-      margin-top: 20px;
-      background: #3b82f6;
-      color: #fff;
-      border: none;
-      padding: 12px 24px;
-      border-radius: 8px;
-      font-size: 16px;
-      cursor: pointer;
-      transition: background 0.3s;
-    }
-
-    #connectBtn:hover {
-      background: #2563eb;
-    }
-
-    #status {
-      margin-top: 20px;
-      font-size: 14px;
-      color: #aaa;
-    }
-
-    #gameCanvas {
-      background: #222;
-      border: 2px solid #444;
-      margin-top: 30px;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Block Drop Game</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background: linear-gradient(135deg, #1a1a2e, #0f3460); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+        #game { background: rgba(0,0,0,0.4); padding: 30px; border-radius: 20px; color: white; max-width: 800px; width: 100%; }
+        h1 { text-align: center; margin-bottom: 20px; }
+        button { padding: 12px 24px; margin: 5px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 14px; transition: transform 0.1s; }
+        button:hover { transform: translateY(-2px); }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .connect-btn { background: #3b82f6; color: white; width: 100%; margin-bottom: 20px; }
+        .connect-btn.connected { background: #10b981; }
+        #board { display: inline-grid; grid-template-columns: repeat(10, 25px); gap: 1px; background: #0a0a0a; padding: 1px; margin: 20px auto; border: 4px solid rgba(102, 126, 234, 0.3); border-radius: 8px; }
+        .cell { width: 25px; height: 25px; background: #1a1a2e; }
+        .controls { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 20px; }
+        .controls button { background: #3b82f6; color: white; padding: 15px 30px; font-size: 18px; }
+        .info { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 20px; }
+        .info-box { background: linear-gradient(135deg, #667eea, #764ba2); padding: 15px; border-radius: 12px; text-align: center; }
+        .info-box .label { font-size: 12px; opacity: 0.9; }
+        .info-box .value { font-size: 28px; font-weight: bold; margin-top: 5px; }
+        .game-controls { display: flex; gap: 10px; margin-bottom: 20px; }
+        .game-controls button { flex: 1; }
+        .submit-btn { background: #8b5cf6; color: white; }
+        .leaderboard-btn { background: #f59e0b; color: white; }
+        .pause-btn { background: #eab308; color: black; }
+        .new-btn { background: #10b981; color: white; }
+        #status { text-align: center; margin-bottom: 10px; font-size: 12px; opacity: 0.8; }
+        .loading { text-align: center; padding: 20px; }
+    </style>
 </head>
 <body>
-  <h1>🧱 Block Drop Game</h1>
+    <div id="game">
+        <h1>🎮 Block Drop</h1>
+        <p style="text-align: center; opacity: 0.7; margin-bottom: 10px; font-size: 12px;">Web3 Puzzle Game on Base</p>
+        <p style="text-align: center; opacity: 0.5; margin-bottom: 20px; font-size: 10px; font-family: monospace;">0xa6A7...aBaf</p>
+        <div id="status">Loading...</div>
+        
+        <button id="connectBtn" class="connect-btn" onclick="connectWallet()" disabled>
+            <span id="connectText">Loading Web3...</span>
+        </button>
+        
+        <div class="info">
+            <div class="info-box">
+                <div class="label">Score</div>
+                <div class="value" id="score">0</div>
+            </div>
+            <div class="info-box">
+                <div class="label">Lines</div>
+                <div class="value" id="lines">0</div>
+            </div>
+            <div class="info-box">
+                <div class="label">Level</div>
+                <div class="value" id="level">1</div>
+            </div>
+        </div>
 
-  <button id="connectBtn">🔗 Connect Wallet</button>
-  <div id="status">Wallet not connected</div>
+        <div class="game-controls">
+            <button class="pause-btn" onclick="togglePause()">⏸️ Pause</button>
+            <button class="new-btn" onclick="startNewGame()">🔄 New Game</button>
+        </div>
 
-  <!-- Example game canvas -->
-  <canvas id="gameCanvas" width="400" height="600"></canvas>
+        <div class="game-controls" id="web3controls" style="display: none;">
+            <button class="submit-btn" onclick="submitScore()">📤 Submit Score</button>
+            <button class="leaderboard-btn" onclick="showLeaderboard()">🏆 Leaderboard</button>
+        </div>
+        
+        <div style="text-align: center;">
+            <div id="board"></div>
+        </div>
+        
+        <div class="controls">
+            <button onclick="move(-1)">←</button>
+            <button onclick="rotate()">↻</button>
+            <button onclick="hardDrop()">↓↓</button>
+            <button onclick="move(1)">→</button>
+        </div>
+        
+        <p style="text-align: center; margin-top: 20px; opacity: 0.7; font-size: 13px;">
+            Keyboard: Arrow Keys to Move/Rotate | Space for Hard Drop | P to Pause
+        </p>
+    </div>
 
-  <script>
-    // Wait for the ethers library to load before loading web3-integration.js
-    window.addEventListener("load", () => {
-      const script = document.createElement("script");
-      script.src = "web3-integration.js";
-      document.body.appendChild(script);
-    });
+    <script>
+        // Contract Configuration
+        const CONTRACT_ADDRESS = '0xa6A74BDCD285Fc5b6634666D511333f47Ea7aBaf';
+        const CONTRACT_ABI = [
+          "function submitScore(uint256 _score, uint256 _level, uint256 _lines, string memory _username) external",
+          "function getTopScores(uint256 _count) external view returns (tuple(address player, uint256 score, uint256 level, uint256 lines, uint256 timestamp, string username)[])"
+        ];
 
-    // Simple mock game loop for demonstration
-    const ctx = document.getElementById('gameCanvas').getContext('2d');
-    ctx.fillStyle = 'cyan';
-    ctx.font = '24px Arial';
-    ctx.fillText('Game Canvas Ready', 80, 300);
-  </script>
+        // Game State
+        const BOARD_WIDTH = 10;
+        const BOARD_HEIGHT = 20;
+        const SHAPES = [[[1,1,1,1]], [[1,1],[1,1]], [[1,1,1],[0,1,0]], [[1,1,1],[1,0,0]], [[1,1,1],[0,0,1]], [[1,1,0],[0,1,1]], [[0,1,1],[1,1,0]]];
+        const COLORS = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8', '#F7DC6F', '#BB8FCE'];
+        
+        let board = Array(BOARD_HEIGHT).fill().map(() => Array(BOARD_WIDTH).fill(0));
+        let currentPiece = null;
+        let position = {x: 0, y: 0};
+        let score = 0;
+        let lines = 0;
+        let level = 1;
+        let gameOver = false;
+        let isPaused = false;
+        let gameInterval = null;
+        let walletAddress = null;
+        let ethersLoaded = false;
+
+        // Load Ethers.js dynamically and wait for it
+        function loadEthers() {
+            return new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = 'https://cdn.ethers.io/lib/ethers-5.2.umd.min.js';
+                script.type = 'text/javascript';
+                script.onload = () => {
+                    console.log('✅ Ethers.js loaded successfully');
+                    ethersLoaded = true;
+                    document.getElementById('status').textContent = '✅ Web3 Ready';
+                    document.getElementById('connectBtn').disabled = false;
+                    document.getElementById('connectText').textContent = '🔗 Connect Wallet';
+                    resolve();
+                };
+                script.onerror = () => {
+                    console.error('❌ Failed to load Ethers.js');
+                    document.getElementById('status').textContent = '❌ Failed to load Web3';
+                    document.getElementById('connectText').textContent = 'Web3 Load Failed - Click to Retry';
+                    document.getElementById('connectBtn').disabled = false;
+                    document.getElementById('connectBtn').onclick = () => {
+                        location.reload();
+                    };
+                    reject(new Error('Failed to load Ethers.js'));
+                };
+                document.head.appendChild(script);
+            });
+        }
+
+        // Initialize Board
+        function initBoard() {
+            const boardEl = document.getElementById('board');
+            boardEl.innerHTML = '';
+            for (let y = 0; y < BOARD_HEIGHT; y++) {
+                for (let x = 0; x < BOARD_WIDTH; x++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    cell.id = `cell-${y}-${x}`;
+                    boardEl.appendChild(cell);
+                }
+            }
+        }
+
+        // Render Board
+        function render() {
+            for (let y = 0; y < BOARD_HEIGHT; y++) {
+                for (let x = 0; x < BOARD_WIDTH; x++) {
+                    const cell = document.getElementById(`cell-${y}-${x}`);
+                    cell.style.backgroundColor = board[y][x] || '#1a1a2e';
+                }
+            }
+            
+            if (currentPiece) {
+                currentPiece.shape.forEach((row, y) => {
+                    row.forEach((value, x) => {
+                        if (value) {
+                            const boardY = position.y + y;
+                            const boardX = position.x + x;
+                            if (boardY >= 0 && boardY < BOARD_HEIGHT && boardX >= 0 && boardX < BOARD_WIDTH) {
+                                const cell = document.getElementById(`cell-${boardY}-${boardX}`);
+                                cell.style.backgroundColor = currentPiece.color;
+                            }
+                        }
+                    });
+                });
+            }
+            
+            document.getElementById('score').textContent = score.toLocaleString();
+            document.getElementById('lines').textContent = lines;
+            document.getElementById('level').textContent = level;
+        }
+
+        // Create New Piece
+        function createPiece() {
+            const idx = Math.floor(Math.random() * SHAPES.length);
+            return { shape: SHAPES[idx], color: COLORS[idx] };
+        }
+
+        // Check Collision
+        function checkCollision(piece, pos) {
+            for (let y = 0; y < piece.shape.length; y++) {
+                for (let x = 0; x < piece.shape[y].length; x++) {
+                    if (piece.shape[y][x]) {
+                        const newX = pos.x + x;
+                        const newY = pos.y + y;
+                        if (newX < 0 || newX >= BOARD_WIDTH || newY >= BOARD_HEIGHT) return true;
+                        if (newY >= 0 && board[newY][newX]) return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        // Merge Piece
+        function mergePiece() {
+            currentPiece.shape.forEach((row, y) => {
+                row.forEach((value, x) => {
+                    if (value && position.y + y >= 0) {
+                        board[position.y + y][position.x + x] = currentPiece.color;
+                    }
+                });
+            });
+        }
+
+        // Clear Lines
+        function clearLines() {
+            let cleared = 0;
+            for (let y = BOARD_HEIGHT - 1; y >= 0; y--) {
+                if (board[y].every(cell => cell !== 0)) {
+                    board.splice(y, 1);
+                    board.unshift(Array(BOARD_WIDTH).fill(0));
+                    cleared++;
+                    y++;
+                }
+            }
+            if (cleared > 0) {
+                lines += cleared;
+                score += cleared * 100 * level;
+                level = Math.floor(lines / 10) + 1;
+                
+                if (gameInterval) {
+                    clearInterval(gameInterval);
+                    const speed = Math.max(200, 1000 - (level - 1) * 100);
+                    gameInterval = setInterval(moveDown, speed);
+                }
+            }
+        }
+
+        // Move Down
+        function moveDown() {
+            if (isPaused || gameOver) return;
+            
+            const newPos = {x: position.x, y: position.y + 1};
+            if (!checkCollision(currentPiece, newPos)) {
+                position = newPos;
+            } else {
+                mergePiece();
+                clearLines();
+                currentPiece = createPiece();
+                position = {x: Math.floor(BOARD_WIDTH / 2) - 1, y: 0};
+                
+                if (checkCollision(currentPiece, position)) {
+                    gameOver = true;
+                    clearInterval(gameInterval);
+                    setTimeout(() => {
+                        alert(`🎮 Game Over!\n\nFinal Score: ${score.toLocaleString()}\nLines: ${lines}\nLevel: ${level}`);
+                    }, 100);
+                }
+            }
+            render();
+        }
+
+        // Move Horizontal
+        function move(dir) {
+            if (isPaused || gameOver) return;
+            const newPos = {x: position.x + dir, y: position.y};
+            if (!checkCollision(currentPiece, newPos)) {
+                position = newPos;
+                render();
+            }
+        }
+
+        // Rotate
+        function rotate() {
+            if (isPaused || gameOver) return;
+            const rotated = currentPiece.shape[0].map((_, i) => 
+                currentPiece.shape.map(row => row[i]).reverse()
+            );
+            const rotatedPiece = {...currentPiece, shape: rotated};
+            if (!checkCollision(rotatedPiece, position)) {
+                currentPiece = rotatedPiece;
+                render();
+            }
+        }
+
+        // Hard Drop
+        function hardDrop() {
+            if (isPaused || gameOver) return;
+            while (!checkCollision(currentPiece, {x: position.x, y: position.y + 1})) {
+                position.y++;
+            }
+            render();
+            setTimeout(moveDown, 50);
+        }
+
+        // Toggle Pause
+        function togglePause() {
+            if (gameOver) return;
+            isPaused = !isPaused;
+            document.querySelector('.pause-btn').textContent = isPaused ? '▶️ Resume' : '⏸️ Pause';
+        }
+
+        // Start New Game
+        function startNewGame() {
+            board = Array(BOARD_HEIGHT).fill().map(() => Array(BOARD_WIDTH).fill(0));
+            currentPiece = createPiece();
+            position = {x: Math.floor(BOARD_WIDTH / 2) - 1, y: 0};
+            score = 0;
+            lines = 0;
+            level = 1;
+            gameOver = false;
+            isPaused = false;
+            
+            if (gameInterval) clearInterval(gameInterval);
+            gameInterval = setInterval(moveDown, 1000);
+            render();
+        }
+
+        // Keyboard Controls
+        document.addEventListener('keydown', (e) => {
+            if (gameOver) return;
+            switch(e.key) {
+                case 'ArrowLeft': move(-1); break;
+                case 'ArrowRight': move(1); break;
+                case 'ArrowDown': moveDown(); break;
+                case 'ArrowUp': rotate(); break;
+                case ' ': e.preventDefault(); hardDrop(); break;
+                case 'p': case 'P': togglePause(); break;
+            }
+        });
+
+        // Web3 Functions
+        async function connectWallet() {
+            if (!ethersLoaded) {
+                alert('⚠️ Web3 is still loading. Please wait a moment and try again.');
+                return;
+            }
+
+            if (typeof ethers === 'undefined') {
+                alert('❌ Web3 library not loaded. Please refresh the page.');
+                location.reload();
+                return;
+            }
+
+            try {
+                if (typeof window.ethereum === 'undefined') {
+                    const install = confirm('MetaMask not detected!\n\nClick OK to install MetaMask, or Cancel to continue without Web3 features.');
+                    if (install) {
+                        window.open('https://metamask.io/download/', '_blank');
+                    }
+                    return;
+                }
+
+                console.log('Requesting accounts...');
+                await window.ethereum.request({ method: 'eth_requestAccounts' });
+                
+                console.log('Creating provider...');
+                const provider = new ethers.providers.Web3Provider(window.ethereum);
+                const signer = provider.getSigner();
+                walletAddress = await signer.getAddress();
+                
+                console.log('Connected:', walletAddress);
+                
+                // Check/Switch to Base
+                const network = await provider.getNetwork();
+                console.log('Network:', network.chainId);
+                
+                if (network.chainId !== 8453) {
+                    console.log('Switching to Base...');
+                    try {
+                        await window.ethereum.request({
+                            method: 'wallet_switchEthereumChain',
+                            params: [{ chainId: '0x2105' }],
+                        });
+                    } catch (switchError) {
+                        if (switchError.code === 4902) {
+                            await window.ethereum.request({
+                                method: 'wallet_addEthereumChain',
+                                params: [{
+                                    chainId: '0x2105',
+                                    chainName: 'Base',
+                                    nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 },
+                                    rpcUrls: ['https://mainnet.base.org'],
+                                    blockExplorerUrls: ['https://basescan.org']
+                                }]
+                            });
+                        } else {
+                            throw switchError;
+                        }
+                    }
+                }
+                
+                document.getElementById('connectText').textContent = `${walletAddress.slice(0,6)}...${walletAddress.slice(-4)}`;
+                document.getElementById('connectBtn').classList.add('connected');
+                document.getElementById('web3controls').style.display = 'flex';
+                document.getElementById('status').textContent = '✅ Wallet Connected to Base';
+                alert('✅ Wallet Connected Successfully!\n\nYou can now submit scores to the blockchain.');
+            } catch (error) {
+                console.error('Connection error:', error);
+                alert('❌ Connection Failed\n\n' + (error.message || 'Unknown error'));
+            }
+        }
+
+        async function submitScore() {
+            if (!walletAddress) {
+                alert('⚠️ Please connect your wallet first!');
+                return;
+            }
+            if (score === 0) {
+                alert('⚠️ Play the game first to earn a score!');
+                return;
+            }
+
+            const username = prompt('Enter your username for the leaderboard:\n(Maximum 20 characters)');
+            if (!username || username.trim() === '') return;
+            
+            if (username.length > 20) {
+                alert('❌ Username too long! Please use 20 characters or less.');
+                return;
+            }
+
+            try {
+                document.getElementById('status').textContent = '⏳ Submitting score...';
+                
+                const provider = new ethers.providers.Web3Provider(window.ethereum);
+                const signer = provider.getSigner();
+                const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
+                
+                console.log('Submitting score:', score, level, lines, username.trim());
+                const tx = await contract.submitScore(score, level, lines, username.trim());
+                
+                document.getElementById('status').textContent = '⏳ Waiting for confirmation...';
+                await tx.wait();
+                
+                document.getElementById('status').textContent = '✅ Score submitted successfully!';
+                alert(`🎉 Score Submitted Successfully!\n\nScore: ${score.toLocaleString()}\nUsername: ${username}\n\nTransaction: ${tx.hash.slice(0,10)}...${tx.hash.slice(-8)}\n\nView on Basescan:\nhttps://basescan.org/tx/${tx.hash}`);
+            } catch (error) {
+                console.error('Submit error:', error);
+                document.getElementById('status').textContent = '❌ Submission failed';
+                
+                let errorMsg = error.message || 'Unknown error';
+                if (error.reason) errorMsg = error.reason;
+                if (errorMsg.includes('user rejected')) errorMsg = 'Transaction was rejected by user';
+                
+                alert('❌ Failed to Submit Score\n\n' + errorMsg);
+            }
+        }
+
+        async function showLeaderboard() {
+            try {
+                document.getElementById('status').textContent = '⏳ Loading leaderboard...';
+                
+                const provider = new ethers.providers.JsonRpcProvider('https://mainnet.base.org');
+                const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, provider);
+                const scores = await contract.getTopScores(10);
+                
+                if (scores.length === 0) {
+                    document.getElementById('status').textContent = 'No scores yet';
+                    alert('🏆 LEADERBOARD\n\nNo scores submitted yet.\nBe the first to submit!');
+                    return;
+                }
+                
+                let msg = '🏆 TOP 10 GLOBAL LEADERBOARD 🏆\n\n';
+                scores.forEach((s, i) => {
+                    const rank = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i+1}.`;
+                    const name = s.username || `${s.player.slice(0,6)}...${s.player.slice(-4)}`;
+                    msg += `${rank} ${name}\n`;
+                    msg += `   💰 ${s.score.toNumber().toLocaleString()} pts | Level ${s.level.toNumber()} | ${s.lines.toNumber()} lines\n\n`;
+                });
+                
+                document.getElementById('status').textContent = '✅ Leaderboard loaded';
+                alert(msg);
+            } catch (error) {
+                console.error('Leaderboard error:', error);
+                document.getElementById('status').textContent = '❌ Failed to load leaderboard';
+                alert('❌ Failed to Load Leaderboard\n\n' + (error.message || 'Unknown error'));
+            }
+        }
+
+        // Initialize on page load
+        window.addEventListener('load', async () => {
+            console.log('🎮 Initializing Block Drop...');
+            initBoard();
+            startNewGame();
+            
+            // Load Ethers.js
+            try {
+                await loadEthers();
+                console.log('✅ Game fully initialized');
+            } catch (error) {
+                console.error('❌ Initialization error:', error);
+            }
+        });
+    </script>
 </body>
 </html>
