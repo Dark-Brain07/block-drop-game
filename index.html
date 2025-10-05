@@ -5,10 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Block Drop - Web3 Puzzle Game</title>
     
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script src="https://cdn.ethers.io/lib/ethers-5.2.umd.min.js"></script>
+    <!-- Load Ethers.js FIRST -->
+    <script src="https://cdn.ethers.io/lib/ethers-5.2.umd.min.js" type="application/javascript"></script>
     
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -16,18 +14,18 @@
         #root { width: 100%; min-height: 100vh; }
         .loading { display: flex; align-items: center; justify-content: center; min-height: 100vh; color: white; font-size: 24px; background: linear-gradient(135deg, #1a1a2e, #0f3460); }
         button { touch-action: manipulation; -webkit-user-select: none; user-select: none; }
-        @media (max-width: 768px) {
-            .game-board { transform: scale(0.9); transform-origin: top center; }
-        }
+        @media (max-width: 768px) { .game-board { transform: scale(0.9); transform-origin: top center; } }
     </style>
 </head>
 <body>
     <div id="root"><div class="loading">Loading Block Drop... 🎮</div></div>
 
-    <script type="text/javascript">
-        // LEADERBOARD CONTRACT ON BASE MAINNET
+    <!-- Web3 Integration - Load BEFORE React -->
+    <script type="application/javascript">
+        console.log('Loading Web3 integration...');
+        
+        // Contract configuration
         const CONTRACT_ADDRESS = '0xa6A74BDCD285Fc5b6634666D511333f47Ea7aBaf';
-
         const CONTRACT_ABI = [
           "function submitScore(uint256 _score, uint256 _level, uint256 _lines, string memory _username) external",
           "function getTopScores(uint256 _count) external view returns (tuple(address player, uint256 score, uint256 level, uint256 lines, uint256 timestamp, string username)[])",
@@ -35,98 +33,145 @@
           "function getTotalScores() external view returns (uint256)"
         ];
 
-        // Make functions globally accessible
-        window.connectWallet = async function() {
-          if (typeof window.ethereum === 'undefined') {
-            throw new Error('MetaMask not installed');
-          }
-
-          try {
-            await window.ethereum.request({ method: 'eth_requestAccounts' });
-            const provider = new ethers.providers.Web3Provider(window.ethereum);
-            const signer = provider.getSigner();
-            const address = await signer.getAddress();
-            
-            const network = await provider.getNetwork();
-            if (network.chainId !== 8453) {
-              try {
-                await window.ethereum.request({
-                  method: 'wallet_switchEthereumChain',
-                  params: [{ chainId: '0x2105' }],
-                });
-              } catch (err) {
-                if (err.code === 4902) {
-                  await window.ethereum.request({
-                    method: 'wallet_addEthereumChain',
-                    params: [{
-                      chainId: '0x2105',
-                      chainName: 'Base',
-                      nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 },
-                      rpcUrls: ['https://mainnet.base.org'],
-                      blockExplorerUrls: ['https://basescan.org']
-                    }]
-                  });
+        // Wait for ethers to load
+        function waitForEthers() {
+            return new Promise((resolve) => {
+                if (typeof ethers !== 'undefined') {
+                    resolve();
                 } else {
-                  throw err;
+                    setTimeout(() => waitForEthers().then(resolve), 100);
                 }
-              }
-            }
-            
-            return { provider, signer, address };
-          } catch (error) {
-            console.error('Wallet connection error:', error);
-            throw error;
-          }
-        };
+            });
+        }
 
-        window.submitScoreToBlockchain = async function(score, level, lines, username) {
-          try {
-            const { signer } = await window.connectWallet();
-            const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
-            const tx = await contract.submitScore(score, level, lines, username);
-            const receipt = await tx.wait();
-            return { success: true, hash: receipt.transactionHash };
-          } catch (error) {
-            console.error('Submit error:', error);
-            return { success: false, error: error.message || 'Unknown error' };
-          }
-        };
+        // Initialize Web3 functions
+        waitForEthers().then(() => {
+            console.log('✅ Ethers.js loaded');
 
-        window.getLeaderboard = async function(count = 10) {
-          try {
-            const provider = new ethers.providers.JsonRpcProvider('https://mainnet.base.org');
-            const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, provider);
-            const scores = await contract.getTopScores(count);
-            return scores.map(s => ({
-              player: s.player,
-              score: s.score.toNumber(),
-              level: s.level.toNumber(),
-              lines: s.lines.toNumber(),
-              timestamp: s.timestamp.toNumber(),
-              username: s.username
-            }));
-          } catch (error) {
-            console.error('Leaderboard error:', error);
-            return [];
-          }
-        };
+            // Connect Wallet Function
+            window.web3Connect = async function() {
+                console.log('Attempting wallet connection...');
+                
+                if (typeof window.ethereum === 'undefined') {
+                    throw new Error('MetaMask not installed');
+                }
 
-        window.getTotalScores = async function() {
-          try {
-            const provider = new ethers.providers.JsonRpcProvider('https://mainnet.base.org');
-            const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, provider);
-            const total = await contract.getTotalScores();
-            return total.toNumber();
-          } catch (error) {
-            console.error('Total scores error:', error);
-            return 0;
-          }
-        };
+                try {
+                    await window.ethereum.request({ method: 'eth_requestAccounts' });
+                    const provider = new ethers.providers.Web3Provider(window.ethereum);
+                    const signer = provider.getSigner();
+                    const address = await signer.getAddress();
+                    
+                    console.log('Wallet connected:', address);
+                    
+                    // Check network
+                    const network = await provider.getNetwork();
+                    console.log('Current network:', network.chainId);
+                    
+                    if (network.chainId !== 8453) {
+                        console.log('Switching to Base network...');
+                        try {
+                            await window.ethereum.request({
+                                method: 'wallet_switchEthereumChain',
+                                params: [{ chainId: '0x2105' }],
+                            });
+                        } catch (switchError) {
+                            if (switchError.code === 4902) {
+                                await window.ethereum.request({
+                                    method: 'wallet_addEthereumChain',
+                                    params: [{
+                                        chainId: '0x2105',
+                                        chainName: 'Base',
+                                        nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 },
+                                        rpcUrls: ['https://mainnet.base.org'],
+                                        blockExplorerUrls: ['https://basescan.org']
+                                    }]
+                                });
+                            } else {
+                                throw switchError;
+                            }
+                        }
+                    }
+                    
+                    return { provider, signer, address };
+                } catch (error) {
+                    console.error('Connection error:', error);
+                    throw error;
+                }
+            };
 
-        console.log('✅ Web3 functions loaded');
-        console.log('Contract:', CONTRACT_ADDRESS);
+            // Submit Score Function
+            window.web3SubmitScore = async function(score, level, lines, username) {
+                console.log('Submitting score...', { score, level, lines, username });
+                
+                try {
+                    const { signer } = await window.web3Connect();
+                    const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
+                    
+                    console.log('Sending transaction...');
+                    const tx = await contract.submitScore(score, level, lines, username);
+                    console.log('Transaction sent:', tx.hash);
+                    
+                    const receipt = await tx.wait();
+                    console.log('Transaction confirmed:', receipt.transactionHash);
+                    
+                    return { success: true, hash: receipt.transactionHash };
+                } catch (error) {
+                    console.error('Submit error:', error);
+                    return { success: false, error: error.message || 'Unknown error' };
+                }
+            };
+
+            // Get Leaderboard Function
+            window.web3GetLeaderboard = async function(count = 10) {
+                console.log('Fetching leaderboard...');
+                
+                try {
+                    const provider = new ethers.providers.JsonRpcProvider('https://mainnet.base.org');
+                    const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, provider);
+                    const scores = await contract.getTopScores(count);
+                    
+                    const formatted = scores.map(s => ({
+                        player: s.player,
+                        score: s.score.toNumber(),
+                        level: s.level.toNumber(),
+                        lines: s.lines.toNumber(),
+                        timestamp: s.timestamp.toNumber(),
+                        username: s.username
+                    }));
+                    
+                    console.log('Leaderboard fetched:', formatted.length, 'scores');
+                    return formatted;
+                } catch (error) {
+                    console.error('Leaderboard error:', error);
+                    return [];
+                }
+            };
+
+            // Get Total Scores Function
+            window.web3GetTotal = async function() {
+                try {
+                    const provider = new ethers.providers.JsonRpcProvider('https://mainnet.base.org');
+                    const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, provider);
+                    const total = await contract.getTotalScores();
+                    return total.toNumber();
+                } catch (error) {
+                    console.error('Total scores error:', error);
+                    return 0;
+                }
+            };
+
+            console.log('✅ Web3 functions ready');
+            console.log('Contract:', CONTRACT_ADDRESS);
+        });
     </script>
 
+    <!-- Load React -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- Game Component -->
     <script type="text/babel">
         const { useState, useEffect, useCallback, useRef } = React;
 
@@ -156,9 +201,7 @@
             const touchStartY = useRef(0);
 
             useEffect(() => {
-                const checkMobile = () => {
-                    setIsMobile(window.innerWidth <= 768 || 'ontouchstart' in window);
-                };
+                const checkMobile = () => setIsMobile(window.innerWidth <= 768 || 'ontouchstart' in window);
                 checkMobile();
                 window.addEventListener('resize', checkMobile);
                 return () => window.removeEventListener('resize', checkMobile);
@@ -257,7 +300,6 @@
                 setTimeout(moveDown, 50);
             }, [currentPiece, position, checkCollision, moveDown, isPaused, gameOver]);
 
-            // Touch controls
             const handleTouchStart = useCallback((e) => {
                 touchStartX.current = e.touches[0].clientX;
                 touchStartY.current = e.touches[0].clientY;
@@ -265,78 +307,68 @@
 
             const handleTouchEnd = useCallback((e) => {
                 if (gameOver || isPaused) return;
-                
                 const touchEndX = e.changedTouches[0].clientX;
                 const touchEndY = e.changedTouches[0].clientY;
                 const deltaX = touchEndX - touchStartX.current;
                 const deltaY = touchEndY - touchStartY.current;
                 
                 if (Math.abs(deltaX) > Math.abs(deltaY)) {
-                    // Horizontal swipe
-                    if (Math.abs(deltaX) > 30) {
-                        moveHorizontal(deltaX > 0 ? 1 : -1);
-                    }
+                    if (Math.abs(deltaX) > 30) moveHorizontal(deltaX > 0 ? 1 : -1);
                 } else {
-                    // Vertical swipe
-                    if (deltaY > 50) {
-                        hardDrop();
-                    } else if (deltaY < -30) {
-                        rotatePiece();
-                    }
+                    if (deltaY > 50) hardDrop();
+                    else if (deltaY < -30) rotatePiece();
                 }
             }, [gameOver, isPaused, moveHorizontal, hardDrop, rotatePiece]);
 
             const handleConnectWallet = async () => {
                 try {
-                    if (typeof window.connectWallet === 'undefined') {
-                        throw new Error('Web3 not loaded. Please refresh the page.');
+                    console.log('Connect wallet button clicked');
+                    
+                    if (typeof window.web3Connect === 'undefined') {
+                        alert('⚠️ Web3 still loading. Please wait a moment and try again.');
+                        return;
                     }
-                    const { address } = await window.connectWallet();
+                    
+                    const { address } = await window.web3Connect();
                     setWalletAddress(address);
-                    alert('✅ Wallet Connected!\n\nYou can now submit scores to the blockchain.');
+                    alert('✅ Wallet Connected!\n\n' + address.slice(0, 6) + '...' + address.slice(-4));
                     loadTotalScores();
                 } catch (error) {
                     console.error('Connection error:', error);
                     if (error.message && error.message.includes('MetaMask')) {
-                        const install = window.confirm('MetaMask not detected!\n\nInstall MetaMask to submit scores on-chain?');
+                        const install = window.confirm('MetaMask not detected!\n\nInstall MetaMask to submit scores?');
                         if (install) window.open('https://metamask.io/download/', '_blank');
                     } else {
-                        alert('❌ Connection failed: ' + (error.message || 'Unknown error'));
+                        alert('❌ Failed: ' + (error.message || 'Unknown error'));
                     }
                 }
             };
 
             const handleSubmitScore = async () => {
                 if (!walletAddress) {
-                    alert('⚠️ Please connect your wallet first!');
+                    alert('⚠️ Connect wallet first!');
                     return;
                 }
-
                 if (score === 0) {
-                    alert('⚠️ Play the game first to earn a score!');
+                    alert('⚠️ Play the game first!');
                     return;
                 }
 
-                const username = prompt('Enter your username:\n(Max 20 characters)');
+                const username = prompt('Enter username (max 20 chars):');
                 if (!username || username.trim() === '') return;
 
                 setSubmittingScore(true);
                 try {
-                    if (typeof window.submitScoreToBlockchain === 'undefined') {
-                        throw new Error('Web3 not loaded. Please refresh the page.');
-                    }
-                    const result = await window.submitScoreToBlockchain(score, level, lines, username.trim());
-                    
+                    const result = await window.web3SubmitScore(score, level, lines, username.trim());
                     if (result.success) {
-                        alert(`🎉 Score Submitted!\n\nScore: ${score}\nTransaction:\n${result.hash.slice(0,10)}...${result.hash.slice(-8)}\n\nView on Basescan`);
+                        alert(`🎉 Score Submitted!\n\nTx: ${result.hash.slice(0, 10)}...`);
                         loadLeaderboard();
                         loadTotalScores();
                     } else {
-                        alert('❌ Failed to submit:\n\n' + (result.error || 'Unknown error').slice(0, 100));
+                        alert('❌ Failed:\n' + (result.error || 'Unknown').slice(0, 100));
                     }
                 } catch (error) {
-                    console.error('Submit error:', error);
-                    alert('❌ Error:\n\n' + (error.message || 'Unknown error').slice(0, 100));
+                    alert('❌ Error:\n' + (error.message || 'Unknown').slice(0, 100));
                 } finally {
                     setSubmittingScore(false);
                 }
@@ -344,26 +376,22 @@
 
             const loadLeaderboard = async () => {
                 try {
-                    if (typeof window.getLeaderboard === 'undefined') {
-                        throw new Error('Web3 not loaded. Please refresh the page.');
-                    }
-                    const scores = await window.getLeaderboard(10);
+                    const scores = await window.web3GetLeaderboard(10);
                     setLeaderboard(scores);
                     setShowLeaderboard(true);
                 } catch (error) {
-                    console.error('Failed to load leaderboard:', error);
-                    alert('❌ Failed to load leaderboard. Please try again.');
+                    console.error('Leaderboard error:', error);
                 }
             };
 
             const loadTotalScores = async () => {
                 try {
-                    if (typeof window.getTotalScores !== 'undefined') {
-                        const total = await window.getTotalScores();
+                    if (window.web3GetTotal) {
+                        const total = await window.web3GetTotal();
                         setTotalScores(total);
                     }
                 } catch (error) {
-                    console.error('Failed to load total scores:', error);
+                    console.error('Total error:', error);
                 }
             };
 
@@ -456,11 +484,7 @@
                                         <div key={`${y}-${x}`} style={{ width: BLOCK_SIZE, height: BLOCK_SIZE, backgroundColor: cell || '#1a1a2e', boxShadow: cell ? 'inset 0 0 10px rgba(255,255,255,0.4), 0 2px 5px rgba(0,0,0,0.3)' : 'inset 0 0 5px rgba(0,0,0,0.5)', borderRadius: '2px' }} />
                                     )))}
                                 </div>
-                                {isMobile && (
-                                    <p style={{ textAlign: 'center', color: 'rgba(255,255,255,0.6)', fontSize: '11px', marginTop: '10px' }}>
-                                        Swipe: ← → Move • ↑ Rotate • ↓ Drop
-                                    </p>
-                                )}
+                                {isMobile && <p style={{ textAlign: 'center', color: 'rgba(255,255,255,0.6)', fontSize: '11px', marginTop: '10px' }}>Swipe: ← → Move • ↑ Rotate • ↓ Drop</p>}
                             </div>
                             
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', minWidth: isMobile ? '100%' : '220px', width: isMobile ? '100%' : 'auto' }}>
@@ -523,9 +547,7 @@
                         {gameOver && !showLeaderboard && (
                             <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.95)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(10px)', padding: '20px' }}>
                                 <div style={{ background: 'linear-gradient(135deg, #667eea, #764ba2)', padding: isMobile ? '40px 30px' : '60px 70px', borderRadius: '30px', color: 'white', textAlign: 'center', boxShadow: '0 30px 80px rgba(0,0,0,0.7)', maxWidth: '500px', width: '100%' }}>
-                                    <h2 style={{ fontSize: isMobile ? '42px' : '54px', fontWeight: 'bold', marginBottom: '25px', textShadow: '3px 3px 6px rgba(0,0,0,0.4)' }}>
-                                        Game Over! 🎮
-                                    </h2>
+                                    <h2 style={{ fontSize: isMobile ? '42px' : '54px', fontWeight: 'bold', marginBottom: '25px', textShadow: '3px 3px 6px rgba(0,0,0,0.4)' }}>Game Over! 🎮</h2>
                                     <div style={{ background: 'rgba(255,255,255,0.15)', padding: '20px', borderRadius: '20px', marginBottom: '30px', backdropFilter: 'blur(10px)' }}>
                                         <p style={{ fontSize: isMobile ? '28px' : '32px', marginBottom: '12px', fontWeight: 'bold' }}>{score.toLocaleString()} points</p>
                                         <p style={{ fontSize: '18px', marginBottom: '6px', opacity: 0.95 }}>Lines: <strong>{lines}</strong></p>
@@ -546,14 +568,10 @@
                         {showLeaderboard && (
                             <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.95)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(10px)', padding: '20px', overflowY: 'auto' }}>
                                 <div style={{ background: 'linear-gradient(135deg, #1a1a2e, #0f3460)', padding: isMobile ? '25px' : '40px', borderRadius: '30px', color: 'white', maxWidth: '700px', width: '100%', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 30px 80px rgba(0,0,0,0.8)', border: '2px solid rgba(102, 126, 234, 0.3)' }}>
-                                    <h2 style={{ fontSize: isMobile ? '32px' : '42px', fontWeight: 'bold', marginBottom: '25px', textAlign: 'center', textShadow: '2px 2px 4px rgba(0,0,0,0.5)' }}>
-                                        🏆 Global Leaderboard
-                                    </h2>
+                                    <h2 style={{ fontSize: isMobile ? '32px' : '42px', fontWeight: 'bold', marginBottom: '25px', textAlign: 'center', textShadow: '2px 2px 4px rgba(0,0,0,0.5)' }}>🏆 Global Leaderboard</h2>
                                     
                                     {leaderboard.length === 0 ? (
-                                        <p style={{ textAlign: 'center', fontSize: '16px', opacity: 0.8, padding: '40px 20px' }}>
-                                            No scores yet. Be the first! 🎯
-                                        </p>
+                                        <p style={{ textAlign: 'center', fontSize: '16px', opacity: 0.8, padding: '40px 20px' }}>No scores yet. Be the first! 🎯</p>
                                     ) : (
                                         <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '20px', padding: isMobile ? '15px' : '20px', marginBottom: '25px' }}>
                                             {leaderboard.map((entry, index) => (
@@ -579,9 +597,7 @@
                                                             <div style={{ fontSize: isMobile ? '10px' : '11px', opacity: 0.7 }}>points</div>
                                                         </div>
                                                         <div>
-                                                            <div style={{ fontSize: isMobile ? '14px' : '16px', fontWeight: 'bold' }}>
-                                                                L{entry.level}
-                                                            </div>
+                                                            <div style={{ fontSize: isMobile ? '14px' : '16px', fontWeight: 'bold' }}>L{entry.level}</div>
                                                             <div style={{ fontSize: isMobile ? '10px' : '11px', opacity: 0.7 }}>{entry.lines} lines</div>
                                                         </div>
                                                     </div>
@@ -601,7 +617,14 @@
             );
         }
 
-        ReactDOM.render(<BlockDropGame />, document.getElementById('root'));
+        // Wait for DOM to be ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => {
+                ReactDOM.render(<BlockDropGame />, document.getElementById('root'));
+            });
+        } else {
+            ReactDOM.render(<BlockDropGame />, document.getElementById('root'));
+        }
     </script>
 </body>
 </html>
