@@ -1,0 +1,243 @@
+.container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 20px;
+}
+
+.gameWrapper {
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(15px);
+  border-radius: 24px;
+  padding: 30px;
+  box-shadow: 0 25px 70px rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  max-width: 800px;
+  width: 100%;
+}
+
+.title {
+  font-size: 48px;
+  font-weight: bold;
+  color: white;
+  text-align: center;
+  margin-bottom: 10px;
+  text-shadow: 3px 3px 6px rgba(0, 0, 0, 0.5);
+}
+
+.subtitle {
+  text-align: center;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 14px;
+  margin-bottom: 20px;
+}
+
+.connectBtn {
+  width: 100%;
+  padding: 14px 20px;
+  margin-bottom: 20px;
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 15px;
+  transition: all 0.3s ease;
+  box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
+}
+
+.connectBtn:hover {
+  transform: translateY(-2px);
+}
+
+.connected {
+  background: linear-gradient(135deg, #10b981, #059669);
+}
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+.statBox {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  padding: 20px;
+  border-radius: 16px;
+  text-align: center;
+}
+
+.statLabel {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.9);
+  text-transform: uppercase;
+}
+
+.statValue {
+  font-size: 36px;
+  font-weight: bold;
+  color: white;
+}
+
+.controls {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.controls button {
+  flex: 1;
+  padding: 14px;
+  border: none;
+  border-radius: 14px;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 15px;
+  transition: all 0.3s ease;
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: white;
+}
+
+.controls button:hover {
+  transform: translateY(-2px);
+}
+
+.controls button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.web3Controls {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.web3Controls button {
+  flex: 1;
+  padding: 14px;
+  background: linear-gradient(135deg, #8b5cf6, #6366f1);
+  color: white;
+  border: none;
+  border-radius: 14px;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 15px;
+}
+
+.boardContainer {
+  text-align: center;
+  margin: 20px 0;
+  touch-action: none;
+}
+
+.board {
+  display: inline-grid;
+  grid-template-columns: repeat(10, 25px);
+  gap: 1px;
+  background: #0a0a0a;
+  padding: 1px;
+  border: 4px solid rgba(102, 126, 234, 0.3);
+  border-radius: 8px;
+}
+
+.cell {
+  width: 25px;
+  height: 25px;
+  border-radius: 2px;
+}
+
+.mobileControls {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.mobileControls button {
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  padding: 18px;
+  font-size: 24px;
+  cursor: pointer;
+}
+
+.instructions {
+  text-align: center;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 13px;
+  margin-top: 20px;
+}
+
+.gameOverModal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.gameOverContent {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  padding: 60px 70px;
+  border-radius: 30px;
+  color: white;
+  text-align: center;
+  max-width: 500px;
+  width: 100%;
+}
+
+.gameOverContent h2 {
+  font-size: 54px;
+  font-weight: bold;
+  margin-bottom: 25px;
+}
+
+.finalScore {
+  font-size: 32px;
+  font-weight: bold;
+  margin-bottom: 15px;
+}
+
+.gameOverContent p {
+  font-size: 20px;
+  margin-bottom: 30px;
+}
+
+.gameOverContent button {
+  background: white;
+  color: #667eea;
+  padding: 16px 50px;
+  border: none;
+  border-radius: 16px;
+  font-weight: bold;
+  font-size: 18px;
+  cursor: pointer;
+  margin: 5px;
+}
+
+@media (max-width: 768px) {
+  .title {
+    font-size: 32px;
+  }
+  .gameWrapper {
+    padding: 15px;
+  }
+  .statValue {
+    font-size: 28px;
+  }
+  .gameOverContent {
+    padding: 40px 30px;
+  }
+  .gameOverContent h2 {
+    font-size: 42px;
+  }
+}
