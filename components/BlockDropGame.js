@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useWeb3 } from '../contexts/Web3Context';
+import Leaderboard from './Leaderboard';
 import styles from '../styles/Game.module.css';
 
 const BOARD_WIDTH = 10;
@@ -31,6 +32,7 @@ export default function BlockDropGame() {
   const [isPaused, setIsPaused] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
   
   const touchStart = useRef({ x: 0, y: 0 });
 
@@ -184,7 +186,7 @@ export default function BlockDropGame() {
     setSubmitting(true);
     try {
       const result = await submitScore(score, level, lines, username.trim());
-      alert(`🎉 Score Submitted!\n\nTransaction: ${result.transactionHash}`);
+      alert(`🎉 Score Submitted!\n\nTransaction: ${result.transactionHash.slice(0,10)}...${result.transactionHash.slice(-8)}\n\nView on Basescan:\nhttps://basescan.org/tx/${result.transactionHash}`);
     } catch (error) {
       alert(`Failed to submit score: ${error.message}`);
     } finally {
@@ -282,6 +284,9 @@ export default function BlockDropGame() {
             <button onClick={handleSubmitScore} disabled={submitting || score === 0}>
               {submitting ? '⏳ Submitting...' : '📤 Submit Score'}
             </button>
+            <button onClick={() => setShowLeaderboard(true)}>
+              🏆 Leaderboard
+            </button>
           </div>
         )}
 
@@ -332,6 +337,10 @@ export default function BlockDropGame() {
               <button onClick={startGame}>Play Again 🎯</button>
             </div>
           </div>
+        )}
+
+        {showLeaderboard && (
+          <Leaderboard onClose={() => setShowLeaderboard(false)} />
         )}
       </div>
     </div>
