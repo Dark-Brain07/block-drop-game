@@ -1,0 +1,277 @@
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.95);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  padding: 20px;
+  backdrop-filter: blur(10px);
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.content {
+  background: linear-gradient(135deg, #1a1a2e, #0f3460);
+  border-radius: 24px;
+  padding: 30px;
+  max-width: 900px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  border: 2px solid rgba(102, 126, 234, 0.3);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.8);
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.header h2 {
+  font-size: 42px;
+  color: white;
+  margin: 0;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.closeBtn {
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  border: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  font-size: 24px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.closeBtn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: scale(1.1);
+}
+
+.stats {
+  display: flex;
+  gap: 15px;
+  margin-bottom: 30px;
+}
+
+.statItem {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  padding: 15px 25px;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.statLabel {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.9);
+  text-transform: uppercase;
+}
+
+.statValue {
+  font-size: 28px;
+  font-weight: bold;
+  color: white;
+  margin-top: 5px;
+}
+
+.loading {
+  text-align: center;
+  padding: 60px 20px;
+  color: white;
+}
+
+.spinner {
+  width: 50px;
+  height: 50px;
+  border: 5px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 20px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.error {
+  text-align: center;
+  padding: 40px 20px;
+  color: #ff6b6b;
+}
+
+.retryBtn {
+  background: #ef4444;
+  color: white;
+  padding: 12px 30px;
+  border: none;
+  border-radius: 12px;
+  font-weight: bold;
+  cursor: pointer;
+  margin-top: 20px;
+}
+
+.empty {
+  text-align: center;
+  padding: 60px 20px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 18px;
+}
+
+.table {
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 16px;
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+
+.tableHeader {
+  display: grid;
+  grid-template-columns: 80px 1fr 120px 150px;
+  gap: 15px;
+  padding: 20px;
+  background: rgba(102, 126, 234, 0.2);
+  color: white;
+  font-weight: bold;
+  font-size: 14px;
+  text-transform: uppercase;
+}
+
+.tableBody {
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 80px 1fr 120px 150px;
+  gap: 15px;
+  padding: 20px;
+  color: white;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  transition: all 0.3s ease;
+}
+
+.row:hover {
+  background: rgba(102, 126, 234, 0.1);
+}
+
+.topThree {
+  background: rgba(255, 215, 0, 0.1);
+  border-left: 4px solid gold;
+}
+
+.rank {
+  font-size: 24px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.player {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.playerName {
+  font-size: 16px;
+  font-weight: bold;
+  margin-bottom: 4px;
+}
+
+.playerAddress {
+  font-size: 12px;
+  opacity: 0.7;
+  font-family: monospace;
+}
+
+.score {
+  font-size: 22px;
+  font-weight: bold;
+  color: #4ECDC4;
+  display: flex;
+  align-items: center;
+}
+
+.details {
+  font-size: 14px;
+  opacity: 0.8;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.footer {
+  display: flex;
+  gap: 15px;
+  margin-top: 20px;
+}
+
+.refreshBtn,
+.backBtn {
+  flex: 1;
+  padding: 16px;
+  border: none;
+  border-radius: 14px;
+  font-weight: bold;
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.refreshBtn {
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: white;
+}
+
+.backBtn {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: white;
+}
+
+.refreshBtn:hover,
+.backBtn:hover {
+  transform: translateY(-2px);
+}
+
+.refreshBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+@media (max-width: 768px) {
+  .header h2 {
+    font-size: 28px;
+  }
+  
+  .tableHeader,
+  .row {
+    grid-template-columns: 60px 1fr 100px;
+    gap: 10px;
+    padding: 15px;
+  }
+  
+  .details {
+    display: none;
+  }
+  
+  .score {
+    font-size: 18px;
+  }
+}
