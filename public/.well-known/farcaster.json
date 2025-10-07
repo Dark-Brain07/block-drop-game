@@ -1,0 +1,15 @@
+{
+  "accountAssociation": {
+    "header": "PLACEHOLDER_HEADER",
+    "payload": "PLACEHOLDER_PAYLOAD", 
+    "signature": "PLACEHOLDER_SIGNATURE"
+  },
+  "frame": {
+    "version": "next",
+    "name": "Block Drop",
+    "iconUrl": "https://block-drop-game.vercel.app/icon.png",
+    "splashImageUrl": "https://block-drop-game.vercel.app/preview.png",
+    "splashBackgroundColor": "#667eea",
+    "homeUrl": "https://block-drop-game.vercel.app"
+  }
+}
